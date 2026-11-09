@@ -1,4 +1,3 @@
-
 import 'package:decimal/decimal.dart';
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
@@ -21,9 +20,7 @@ class SupplierPaymentRepository {
   final AppDatabase _database;
   final ExchangeRateRepository _exchangeRateRepository;
 
-  static final BigInt _maxSqliteInteger = BigInt.parse(
-    '9223372036854775807',
-  );
+  static final BigInt _maxSqliteInteger = BigInt.parse('9223372036854775807');
 
   /// Registra un pago y calcula cuánto se aplica a la deuda de la compra.
   ///
@@ -72,10 +69,10 @@ class SupplierPaymentRepository {
     final normalizedNotes = _normalizeOptional(notes);
 
     return _database.transaction(() async {
-      final purchase = await (_database.select(
-        _database.purchases,
-      )..where((table) => table.id.equals(normalizedPurchaseId)))
-          .getSingleOrNull();
+      final purchase =
+          await (_database.select(_database.purchases)
+                ..where((table) => table.id.equals(normalizedPurchaseId)))
+              .getSingleOrNull();
 
       if (purchase == null) {
         throw StateError('La compra indicada no existe.');
@@ -87,10 +84,10 @@ class SupplierPaymentRepository {
         );
       }
 
-      final paymentCurrency = await (_database.select(
-        _database.currencies,
-      )..where((table) => table.code.equals(normalizedCurrencyCode)))
-          .getSingleOrNull();
+      final paymentCurrency =
+          await (_database.select(_database.currencies)
+                ..where((table) => table.code.equals(normalizedCurrencyCode)))
+              .getSingleOrNull();
 
       if (paymentCurrency == null) {
         throw StateError('La moneda del pago no está registrada.');
@@ -104,10 +101,10 @@ class SupplierPaymentRepository {
         purchase.currencyCode,
       );
 
-      final purchaseCurrency = await (_database.select(
-        _database.currencies,
-      )..where((table) => table.code.equals(purchaseCurrencyCode)))
-          .getSingleOrNull();
+      final purchaseCurrency =
+          await (_database.select(_database.currencies)
+                ..where((table) => table.code.equals(purchaseCurrencyCode)))
+              .getSingleOrNull();
 
       if (purchaseCurrency == null) {
         throw StateError('La moneda de la compra no está registrada.');
@@ -168,20 +165,22 @@ class SupplierPaymentRepository {
 
       final paymentId = const Uuid().v4();
 
-      await _database.into(_database.supplierPayments).insert(
-        SupplierPaymentsCompanion.insert(
-          id: paymentId,
-          purchaseId: normalizedPurchaseId,
-          amountMinorUnits: amountMinorUnits,
-          currencyCode: normalizedCurrencyCode,
-          exchangeRateToBaseSnapshot: paymentRate.toString(),
-          appliedAmountMinorUnits: appliedAmountMinorUnits,
-          paymentDate: paymentDate,
-          paymentMethod: normalizedPaymentMethod,
-          reference: Value(normalizedReference),
-          notes: Value(normalizedNotes),
-        ),
-      );
+      await _database
+          .into(_database.supplierPayments)
+          .insert(
+            SupplierPaymentsCompanion.insert(
+              id: paymentId,
+              purchaseId: normalizedPurchaseId,
+              amountMinorUnits: amountMinorUnits,
+              currencyCode: normalizedCurrencyCode,
+              exchangeRateToBaseSnapshot: paymentRate.toString(),
+              appliedAmountMinorUnits: appliedAmountMinorUnits,
+              paymentDate: paymentDate,
+              paymentMethod: normalizedPaymentMethod,
+              reference: Value(normalizedReference),
+              notes: Value(normalizedNotes),
+            ),
+          );
 
       return paymentId;
     });
@@ -240,10 +239,10 @@ class SupplierPaymentRepository {
       'El identificador de la compra es obligatorio.',
     );
 
-    final purchase = await (_database.select(
-      _database.purchases,
-    )..where((table) => table.id.equals(normalizedPurchaseId)))
-        .getSingleOrNull();
+    final purchase =
+        await (_database.select(_database.purchases)
+              ..where((table) => table.id.equals(normalizedPurchaseId)))
+            .getSingleOrNull();
 
     if (purchase == null) {
       throw StateError('La compra indicada no existe.');
@@ -265,8 +264,7 @@ class SupplierPaymentRepository {
   Future<BigInt> _sumAppliedPayments(String purchaseId) async {
     final payments = await (_database.select(
       _database.supplierPayments,
-    )..where((table) => table.purchaseId.equals(purchaseId)))
-        .get();
+    )..where((table) => table.purchaseId.equals(purchaseId))).get();
 
     var total = BigInt.zero;
 
@@ -298,22 +296,21 @@ class SupplierPaymentRepository {
       return amountMinorUnits;
     }
 
-    final convertedAmount =
-        Decimal.fromInt(amountMinorUnits) *
-        paymentRate /
-        purchaseRate;
-
-    final adjustedAmount = convertedAmount.shift(
+    // Ajustamos la tasa de pago a las unidades menores de la moneda
+    // de compra antes de dividir. La división devuelve un Rational,
+    // cuyo round() aplica HALF_UP sin perder precisión.
+    final adjustedPaymentRate = paymentRate.shift(
       purchaseDecimalDigits - paymentDecimalDigits,
     );
 
-    if (adjustedAmount < Decimal.zero) {
+    final convertedAmount =
+        Decimal.fromInt(amountMinorUnits) * adjustedPaymentRate / purchaseRate;
+
+    if (convertedAmount.numerator < BigInt.zero) {
       throw StateError('El importe convertido no puede ser negativo.');
     }
 
-    final roundedAmount = adjustedAmount.round().toBigInt();
-
-    return _checkedInteger(roundedAmount);
+    return _checkedInteger(convertedAmount.round());
   }
 
   Decimal _parsePositiveRate(String value, String errorMessage) {
