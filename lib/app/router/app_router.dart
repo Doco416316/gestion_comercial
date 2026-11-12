@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
 import '../layout/main_layout.dart';
 import '../../features/dashboard/presentation/pages/dashboard_page.dart';
 
@@ -9,7 +10,12 @@ class PlaceholderPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(child: Text('$title - En construcción', style: const TextStyle(fontSize: 24)));
+    return Center(
+      child: Text(
+        '$title - En construcción',
+        style: const TextStyle(fontSize: 24),
+      ),
+    );
   }
 }
 
@@ -18,10 +24,7 @@ final appRouter = GoRouter(
   routes: [
     ShellRoute(
       builder: (context, state, child) {
-        return MainLayout(
-          currentLocation: state.uri.path,
-          child: child,
-        );
+        return MainLayout(currentLocation: state.uri.path, child: child);
       },
       routes: [
         GoRoute(
@@ -30,11 +33,13 @@ final appRouter = GoRouter(
         ),
         GoRoute(
           path: '/productos',
-          builder: (context, state) => const PlaceholderPage(title: 'Productos'),
+          builder: (context, state) =>
+              const PlaceholderPage(title: 'Productos'),
         ),
         GoRoute(
           path: '/inventario',
-          builder: (context, state) => const PlaceholderPage(title: 'Inventario'),
+          builder: (context, state) =>
+              const PlaceholderPage(title: 'Inventario'),
         ),
         GoRoute(
           path: '/compras',

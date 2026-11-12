@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
- // Corregido: apunta a lib/app/layout/
+
+// Corregido: apunta a lib/app/layout/
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
 
