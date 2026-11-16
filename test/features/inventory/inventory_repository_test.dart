@@ -211,6 +211,86 @@ void main() {
     expect(correction.correctionOfId, originalId);
   });
 
+  test('Permite corregir movimientos de productos inactivos', () async {
+    final originalId = await repository.registerMovement(
+      productId: productId,
+      movementType: 'entry',
+      quantityMilliUnits: 10000,
+      reason: 'Compra inicial',
+    );
+
+    await (database.update(database.products)
+          ..where((table) => table.id.equals(productId)))
+        .write(const ProductsCompanion(isActive: Value(false)));
+
+    await repository.correctMovement(
+      originalMovementId: originalId,
+      reason: 'Corrección de movimiento histórico',
+    );
+
+    expect(await repository.getStock(productId), 0);
+
+    final history = await repository.getMovementHistory(productId);
+    expect(history.length, 2);
+    expect(
+      history.where((movement) => movement.correctionOfId != null).length,
+      1,
+    );
+  });
+
+  test(
+    'Permite corregir movimientos cuando se desactiva el control de inventario',
+    () async {
+      final originalId = await repository.registerMovement(
+        productId: productId,
+        movementType: 'entry',
+        quantityMilliUnits: 10000,
+        reason: 'Inventario inicial',
+      );
+
+      await (database.update(database.products)
+            ..where((table) => table.id.equals(productId)))
+          .write(const ProductsCompanion(trackInventory: Value(false)));
+
+      await repository.correctMovement(
+        originalMovementId: originalId,
+        reason: 'Corrección de movimiento histórico',
+      );
+
+      expect(await repository.getStock(productId), 0);
+
+      final history = await repository.getMovementHistory(productId);
+      expect(history.length, 2);
+      expect(
+        history.where((movement) => movement.correctionOfId != null).length,
+        1,
+      );
+    },
+  );
+
+  test('watchStock emite los cambios del inventario', () async {
+    final expectation = expectLater(
+      repository.watchStock(productId),
+      emitsInOrder([0, 10000, 7000]),
+    );
+
+    await repository.registerMovement(
+      productId: productId,
+      movementType: 'entry',
+      quantityMilliUnits: 10000,
+      reason: 'Inventario inicial',
+    );
+
+    await repository.registerMovement(
+      productId: productId,
+      movementType: 'exit',
+      quantityMilliUnits: 3000,
+      reason: 'Salida de inventario',
+    );
+
+    await expectation;
+  });
+
   test('Impide corregir dos veces el mismo movimiento', () async {
     final originalId = await repository.registerMovement(
       productId: productId,

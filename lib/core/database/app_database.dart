@@ -151,6 +151,49 @@ class Suppliers extends Table {
 }
 
 // ============================================================
+// CLIENTES
+// ============================================================
+
+class Customers extends Table {
+  TextColumn get id => text()();
+
+  TextColumn get customerType => text()();
+
+  TextColumn get name => text().withLength(min: 1, max: 150)();
+
+  TextColumn get commercialName => text().nullable()();
+
+  TextColumn get documentType => text().nullable()();
+
+  TextColumn get documentNumber => text().nullable()();
+
+  TextColumn get phone => text().nullable()();
+
+  TextColumn get email => text().nullable()();
+
+  TextColumn get address => text().nullable()();
+
+  TextColumn get municipality => text().nullable()();
+
+  TextColumn get province => text().nullable()();
+
+  TextColumn get country => text().nullable()();
+
+  TextColumn get contactPerson => text().nullable()();
+
+  TextColumn get notes => text().nullable()();
+
+  BoolColumn get isActive => boolean().withDefault(const Constant(true))();
+
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+// ============================================================
 // HISTORIAL DE TASAS DE CAMBIO
 // ============================================================
 
@@ -379,6 +422,7 @@ class SupplierPayments extends Table {
     PurchaseReceipts,
     PurchaseReceiptDetails,
     SupplierPayments,
+    Customers,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -406,7 +450,7 @@ class AppDatabase extends _$AppDatabase {
   static final BigInt _maxSqliteInteger = BigInt.parse('9223372036854775807');
 
   @override
-  int get schemaVersion => 11;
+  int get schemaVersion => 12;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -424,6 +468,7 @@ class AppDatabase extends _$AppDatabase {
       await _createPurchaseIndexes();
       await _createFinancialHistoryProtection();
       await _createPurchaseLifecycleProtection();
+      await _createCustomerIndexesAndProtection();
     },
     onUpgrade: (m, from, to) async {
       if (from < 2) {
@@ -518,6 +563,12 @@ class AppDatabase extends _$AppDatabase {
       if (to >= 11) {
         await _createPurchaseLifecycleProtection();
       }
+
+      // Versión 12: gestión de clientes.
+      if (from < 12 && to >= 12) {
+        await m.createTable(customers);
+        await _createCustomerIndexesAndProtection();
+      }
     },
   );
 
@@ -586,6 +637,101 @@ class AppDatabase extends _$AppDatabase {
       idx_supplier_payments_purchase
       ON supplier_payments (purchase_id, payment_date)
     ''');
+  }
+
+  // ==========================================================
+  // ÍNDICES Y PROTECCIONES DE CLIENTES
+  // ==========================================================
+
+  Future<void> _createCustomerIndexesAndProtection() async {
+    await customStatement('''
+    CREATE UNIQUE INDEX IF NOT EXISTS
+    unique_customer_document
+    ON customers (document_type, document_number)
+    WHERE document_type IS NOT NULL
+      AND length(trim(document_type)) > 0
+      AND document_number IS NOT NULL
+      AND length(trim(document_number)) > 0
+  ''');
+
+    await customStatement('''
+    CREATE TRIGGER IF NOT EXISTS
+    validate_customer_insert
+    BEFORE INSERT ON customers
+    BEGIN
+      SELECT RAISE(
+        ABORT,
+        'Tipo de cliente no válido'
+      )
+      WHERE NEW.customer_type NOT IN ('individual', 'business');
+
+      SELECT RAISE(
+        ABORT,
+        'El nombre es obligatorio y no puede superar 150 caracteres'
+      )
+      WHERE NEW.name IS NULL
+        OR length(trim(NEW.name)) NOT BETWEEN 1 AND 150;
+
+      SELECT RAISE(
+        ABORT,
+        'El tipo y número de documento deben proporcionarse juntos'
+      )
+      WHERE NOT (
+        (
+          NEW.document_type IS NULL
+          AND NEW.document_number IS NULL
+        )
+        OR (
+          NEW.document_type IS NOT NULL
+          AND length(trim(NEW.document_type)) > 0
+          AND NEW.document_number IS NOT NULL
+          AND length(trim(NEW.document_number)) > 0
+        )
+      );
+    END
+  ''');
+
+    await customStatement('''
+    CREATE TRIGGER IF NOT EXISTS
+    validate_customer_update
+    BEFORE UPDATE OF
+      customer_type,
+      name,
+      document_type,
+      document_number
+    ON customers
+    BEGIN
+      SELECT RAISE(
+        ABORT,
+        'Tipo de cliente no válido'
+      )
+      WHERE NEW.customer_type NOT IN ('individual', 'business');
+
+      SELECT RAISE(
+        ABORT,
+        'El nombre es obligatorio y no puede superar 150 caracteres'
+      )
+      WHERE NEW.name IS NULL
+        OR length(trim(NEW.name)) NOT BETWEEN 1 AND 150;
+
+      SELECT RAISE(
+        ABORT,
+        'El tipo y número de documento deben proporcionarse juntos'
+      )
+      WHERE NOT (
+        (
+          NEW.document_type IS NULL
+          AND NEW.document_number IS NULL
+        )
+        OR (
+          NEW.document_type IS NOT NULL
+          AND length(trim(NEW.document_type)) > 0
+          AND NEW.document_number IS NOT NULL
+          AND length(trim(NEW.document_number)) > 0
+        )
+      );
+    END
+  ''');
   }
 
   /// Protege la moneda base y la inmutabilidad de las tasas históricas.

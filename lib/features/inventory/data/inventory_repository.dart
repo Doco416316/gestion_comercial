@@ -47,11 +47,18 @@ class InventoryRepository {
   }
 
   Stream<int> watchStock(String productId) {
-    final query = _database.select(_database.inventoryBalances)
-      ..where((table) => table.productId.equals(productId));
+    final query = _database.customSelect(
+      '''
+    SELECT quantity_milli_units
+    FROM inventory_balances
+    WHERE product_id = ?
+    ''',
+      variables: [Variable.withString(productId)],
+      readsFrom: {_database.inventoryBalances, _database.inventoryMovements},
+    );
 
     return query.watchSingleOrNull().map(
-      (balance) => balance?.quantityMilliUnits ?? 0,
+      (row) => row?.read<int>('quantity_milli_units') ?? 0,
     );
   }
 

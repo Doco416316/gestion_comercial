@@ -1,4 +1,3 @@
-
 import 'package:decimal/decimal.dart';
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
@@ -20,19 +19,14 @@ class PurchaseRepository {
   PurchaseRepository(
     this._database, {
     PurchaseCalculationService? calculationService,
-  }) : _calculationService =
-          calculationService ?? PurchaseCalculationService();
+  }) : _calculationService = calculationService ?? PurchaseCalculationService();
 
   final AppDatabase _database;
   final PurchaseCalculationService _calculationService;
 
   static const Uuid _uuid = Uuid();
 
-  static const Set<String> _validStatuses = {
-    'draft',
-    'confirmed',
-    'cancelled',
-  };
+  static const Set<String> _validStatuses = {'draft', 'confirmed', 'cancelled'};
 
   // ============================================================
   // CONSULTAS
@@ -41,9 +35,7 @@ class PurchaseRepository {
   /// Observa todas las compras, ordenadas por fecha descendente.
   Stream<List<Purchase>> watchAll() {
     return (_database.select(_database.purchases)
-          ..orderBy([
-            (purchase) => OrderingTerm.desc(purchase.purchaseDate),
-          ]))
+          ..orderBy([(purchase) => OrderingTerm.desc(purchase.purchaseDate)]))
         .watch();
   }
 
@@ -53,31 +45,29 @@ class PurchaseRepository {
 
     return (_database.select(_database.purchases)
           ..where((purchase) => purchase.status.equals(status))
-          ..orderBy([
-            (purchase) => OrderingTerm.desc(purchase.purchaseDate),
-          ]))
+          ..orderBy([(purchase) => OrderingTerm.desc(purchase.purchaseDate)]))
         .watch();
   }
 
   /// Busca una compra por su identificador.
   Future<Purchase?> findById(String purchaseId) {
-    return (_database.select(_database.purchases)
-          ..where((purchase) => purchase.id.equals(purchaseId)))
-        .getSingleOrNull();
+    return (_database.select(
+      _database.purchases,
+    )..where((purchase) => purchase.id.equals(purchaseId))).getSingleOrNull();
   }
 
   /// Observa los detalles de una compra.
   Stream<List<PurchaseDetail>> watchDetails(String purchaseId) {
-    return (_database.select(_database.purchaseDetails)
-          ..where((detail) => detail.purchaseId.equals(purchaseId)))
-        .watch();
+    return (_database.select(
+      _database.purchaseDetails,
+    )..where((detail) => detail.purchaseId.equals(purchaseId))).watch();
   }
 
   /// Obtiene los detalles actuales de una compra.
   Future<List<PurchaseDetail>> getDetails(String purchaseId) {
-    return (_database.select(_database.purchaseDetails)
-          ..where((detail) => detail.purchaseId.equals(purchaseId)))
-        .get();
+    return (_database.select(
+      _database.purchaseDetails,
+    )..where((detail) => detail.purchaseId.equals(purchaseId))).get();
   }
 
   // ============================================================
@@ -100,9 +90,7 @@ class PurchaseRepository {
     return _database.transaction(() async {
       await _requireActiveSupplier(supplierId);
 
-      final currency = await _requireActiveCurrency(
-        normalizedCurrency,
-      );
+      final currency = await _requireActiveCurrency(normalizedCurrency);
 
       final rate = await _getRateForDate(
         normalizedCurrency,
@@ -112,27 +100,29 @@ class PurchaseRepository {
 
       final purchaseId = _uuid.v4();
 
-      await _database.into(_database.purchases).insert(
-        PurchasesCompanion.insert(
-          id: purchaseId,
-          supplierId: supplierId,
-          documentNumber: Value(_normalizeOptional(documentNumber)),
-          purchaseDate: purchaseDate,
-          currencyCode: normalizedCurrency,
-          exchangeRateToBaseSnapshot: rate.toString(),
-          subtotalMinorUnits: 0,
-          discountMinorUnits: const Value(0),
-          taxMinorUnits: const Value(0),
-          totalMinorUnits: 0,
-          notes: Value(_normalizeOptional(notes)),
-        ),
-      );
+      await _database
+          .into(_database.purchases)
+          .insert(
+            PurchasesCompanion.insert(
+              id: purchaseId,
+              supplierId: supplierId,
+              documentNumber: Value(_normalizeOptional(documentNumber)),
+              purchaseDate: purchaseDate,
+              currencyCode: normalizedCurrency,
+              exchangeRateToBaseSnapshot: rate.toString(),
+              subtotalMinorUnits: 0,
+              discountMinorUnits: const Value(0),
+              taxMinorUnits: const Value(0),
+              totalMinorUnits: 0,
+              notes: Value(_normalizeOptional(notes)),
+            ),
+          );
 
       return purchaseId;
     });
   }
 
-    /// Modifica los datos generales de un borrador.
+  /// Modifica los datos generales de un borrador.
   ///
   /// Si cambia la fecha o la moneda, se obtiene una nueva tasa
   /// provisional aplicable a esos datos.
@@ -168,9 +158,7 @@ class PurchaseRepository {
         }
       }
 
-      final currency = await _requireActiveCurrency(
-        normalizedCurrency,
-      );
+      final currency = await _requireActiveCurrency(normalizedCurrency);
 
       final rate = await _getRateForDate(
         normalizedCurrency,
@@ -178,9 +166,9 @@ class PurchaseRepository {
         currencyIsBase: currency.isBase,
       );
 
-      await (_database.update(_database.purchases)
-            ..where((purchase) => purchase.id.equals(purchaseId)))
-          .write(
+      await (_database.update(
+        _database.purchases,
+      )..where((purchase) => purchase.id.equals(purchaseId))).write(
         PurchasesCompanion(
           supplierId: Value(supplierId),
           purchaseDate: Value(purchaseDate),
@@ -203,10 +191,8 @@ class PurchaseRepository {
     required String productId,
     required int quantityMilliUnits,
     required int unitCostMinorUnits,
-    PurchaseAdjustmentInput discount =
-        const PurchaseAdjustmentInput.fixed(0),
-    PurchaseAdjustmentInput tax =
-        const PurchaseAdjustmentInput.fixed(0),
+    PurchaseAdjustmentInput discount = const PurchaseAdjustmentInput.fixed(0),
+    PurchaseAdjustmentInput tax = const PurchaseAdjustmentInput.fixed(0),
   }) async {
     return _database.transaction(() async {
       await _requireDraftPurchase(purchaseId);
@@ -225,37 +211,27 @@ class PurchaseRepository {
 
       final detailId = _uuid.v4();
 
-      await _database.into(_database.purchaseDetails).insert(
-        PurchaseDetailsCompanion.insert(
-          id: detailId,
-          purchaseId: purchaseId,
-          productId: productId,
-          skuSnapshot: product.sku,
-          productNameSnapshot: product.name,
-          unitSnapshot: product.unit,
-          quantityMilliUnits: quantityMilliUnits,
-          unitCostMinorUnits: unitCostMinorUnits,
-          discountMinorUnits: Value(
-            calculatedLine.discountMinorUnits,
-          ),
-          discountType: Value(
-            _adjustmentTypeToDatabase(discount.type),
-          ),
-          discountRate: Value(
-            _percentageToDatabase(discount),
-          ),
-          taxMinorUnits: Value(
-            calculatedLine.taxMinorUnits,
-          ),
-          taxType: Value(
-            _adjustmentTypeToDatabase(tax.type),
-          ),
-          taxRate: Value(
-            _percentageToDatabase(tax),
-          ),
-          totalMinorUnits: calculatedLine.totalMinorUnits,
-        ),
-      );
+      await _database
+          .into(_database.purchaseDetails)
+          .insert(
+            PurchaseDetailsCompanion.insert(
+              id: detailId,
+              purchaseId: purchaseId,
+              productId: productId,
+              skuSnapshot: product.sku,
+              productNameSnapshot: product.name,
+              unitSnapshot: product.unit,
+              quantityMilliUnits: quantityMilliUnits,
+              unitCostMinorUnits: unitCostMinorUnits,
+              discountMinorUnits: Value(calculatedLine.discountMinorUnits),
+              discountType: Value(_adjustmentTypeToDatabase(discount.type)),
+              discountRate: Value(_percentageToDatabase(discount)),
+              taxMinorUnits: Value(calculatedLine.taxMinorUnits),
+              taxType: Value(_adjustmentTypeToDatabase(tax.type)),
+              taxRate: Value(_percentageToDatabase(tax)),
+              totalMinorUnits: calculatedLine.totalMinorUnits,
+            ),
+          );
 
       await _recalculateDraft(purchaseId);
 
@@ -270,10 +246,8 @@ class PurchaseRepository {
     required String productId,
     required int quantityMilliUnits,
     required int unitCostMinorUnits,
-    PurchaseAdjustmentInput discount =
-        const PurchaseAdjustmentInput.fixed(0),
-    PurchaseAdjustmentInput tax =
-        const PurchaseAdjustmentInput.fixed(0),
+    PurchaseAdjustmentInput discount = const PurchaseAdjustmentInput.fixed(0),
+    PurchaseAdjustmentInput tax = const PurchaseAdjustmentInput.fixed(0),
   }) async {
     await _database.transaction(() async {
       await _requireDraftPurchase(purchaseId);
@@ -282,8 +256,7 @@ class PurchaseRepository {
         _database.purchaseDetails,
       )..where((detail) => detail.id.equals(detailId))).getSingleOrNull();
 
-      if (existingDetail == null ||
-          existingDetail.purchaseId != purchaseId) {
+      if (existingDetail == null || existingDetail.purchaseId != purchaseId) {
         throw StateError('El detalle no pertenece a esta compra.');
       }
 
@@ -298,9 +271,9 @@ class PurchaseRepository {
         ),
       );
 
-      await (_database.update(_database.purchaseDetails)
-            ..where((detail) => detail.id.equals(detailId)))
-          .write(
+      await (_database.update(
+        _database.purchaseDetails,
+      )..where((detail) => detail.id.equals(detailId))).write(
         PurchaseDetailsCompanion(
           productId: Value(productId),
           skuSnapshot: Value(product.sku),
@@ -308,27 +281,13 @@ class PurchaseRepository {
           unitSnapshot: Value(product.unit),
           quantityMilliUnits: Value(quantityMilliUnits),
           unitCostMinorUnits: Value(unitCostMinorUnits),
-          discountMinorUnits: Value(
-            calculatedLine.discountMinorUnits,
-          ),
-          discountType: Value(
-            _adjustmentTypeToDatabase(discount.type),
-          ),
-          discountRate: Value(
-            _percentageToDatabase(discount),
-          ),
-          taxMinorUnits: Value(
-            calculatedLine.taxMinorUnits,
-          ),
-          taxType: Value(
-            _adjustmentTypeToDatabase(tax.type),
-          ),
-          taxRate: Value(
-            _percentageToDatabase(tax),
-          ),
-          totalMinorUnits: Value(
-            calculatedLine.totalMinorUnits,
-          ),
+          discountMinorUnits: Value(calculatedLine.discountMinorUnits),
+          discountType: Value(_adjustmentTypeToDatabase(discount.type)),
+          discountRate: Value(_percentageToDatabase(discount)),
+          taxMinorUnits: Value(calculatedLine.taxMinorUnits),
+          taxType: Value(_adjustmentTypeToDatabase(tax.type)),
+          taxRate: Value(_percentageToDatabase(tax)),
+          totalMinorUnits: Value(calculatedLine.totalMinorUnits),
         ),
       );
 
@@ -355,9 +314,9 @@ class PurchaseRepository {
         throw StateError('El detalle no pertenece a esta compra.');
       }
 
-      await (_database.delete(_database.purchaseDetails)
-            ..where((row) => row.id.equals(detailId)))
-          .go();
+      await (_database.delete(
+        _database.purchaseDetails,
+      )..where((row) => row.id.equals(detailId))).go();
 
       await _recalculateDraft(purchaseId);
     });
@@ -370,9 +329,7 @@ class PurchaseRepository {
   /// Recalcula todas las líneas y el resumen de una compra.
   ///
   /// Solo puede utilizarse mientras la compra sea un borrador.
-  Future<PurchaseCalculationResult?> recalculateDraft(
-    String purchaseId,
-  ) async {
+  Future<PurchaseCalculationResult?> recalculateDraft(String purchaseId) async {
     return _database.transaction(() async {
       await _requireDraftPurchase(purchaseId);
       return _recalculateDraft(purchaseId);
@@ -387,9 +344,9 @@ class PurchaseRepository {
     )..where((detail) => detail.purchaseId.equals(purchaseId))).get();
 
     if (details.isEmpty) {
-      await (_database.update(_database.purchases)
-            ..where((purchase) => purchase.id.equals(purchaseId)))
-          .write(
+      await (_database.update(
+        _database.purchases,
+      )..where((purchase) => purchase.id.equals(purchaseId))).write(
         const PurchasesCompanion(
           subtotalMinorUnits: Value(0),
           discountMinorUnits: Value(0),
@@ -410,27 +367,21 @@ class PurchaseRepository {
       final detail = details[index];
       final calculatedLine = result.lines[index];
 
-      await (_database.update(_database.purchaseDetails)
-            ..where((row) => row.id.equals(detail.id)))
-          .write(
+      await (_database.update(
+        _database.purchaseDetails,
+      )..where((row) => row.id.equals(detail.id))).write(
         PurchaseDetailsCompanion(
-          discountMinorUnits: Value(
-            calculatedLine.discountMinorUnits,
-          ),
-          taxMinorUnits: Value(
-            calculatedLine.taxMinorUnits,
-          ),
-          totalMinorUnits: Value(
-            calculatedLine.totalMinorUnits,
-          ),
+          discountMinorUnits: Value(calculatedLine.discountMinorUnits),
+          taxMinorUnits: Value(calculatedLine.taxMinorUnits),
+          totalMinorUnits: Value(calculatedLine.totalMinorUnits),
         ),
       );
     }
 
     // Guardar el resumen de la compra.
-    await (_database.update(_database.purchases)
-          ..where((purchase) => purchase.id.equals(purchaseId)))
-        .write(
+    await (_database.update(
+      _database.purchases,
+    )..where((purchase) => purchase.id.equals(purchaseId))).write(
       PurchasesCompanion(
         subtotalMinorUnits: Value(result.subtotalMinorUnits),
         discountMinorUnits: Value(result.discountMinorUnits),
@@ -482,9 +433,7 @@ class PurchaseRepository {
         );
 
       default:
-        throw StateError(
-          'Tipo de ajuste financiero desconocido: $type.',
-        );
+        throw StateError('Tipo de ajuste financiero desconocido: $type.');
     }
   }
 
@@ -508,18 +457,14 @@ class PurchaseRepository {
 
       await _requireActiveSupplier(purchase.supplierId);
 
-      final currency = await _requireActiveCurrency(
-        purchase.currencyCode,
-      );
+      final currency = await _requireActiveCurrency(purchase.currencyCode);
 
       final details = await (_database.select(
         _database.purchaseDetails,
       )..where((detail) => detail.purchaseId.equals(purchaseId))).get();
 
       if (details.isEmpty) {
-        throw StateError(
-          'No se puede confirmar una compra sin detalles.',
-        );
+        throw StateError('No se puede confirmar una compra sin detalles.');
       }
 
       for (final detail in details) {
@@ -535,9 +480,9 @@ class PurchaseRepository {
         currencyIsBase: currency.isBase,
       );
 
-      await (_database.update(_database.purchases)
-            ..where((row) => row.id.equals(purchaseId)))
-          .write(
+      await (_database.update(
+        _database.purchases,
+      )..where((row) => row.id.equals(purchaseId))).write(
         PurchasesCompanion(
           exchangeRateToBaseSnapshot: Value(rate.toString()),
           status: const Value('confirmed'),
@@ -558,9 +503,7 @@ class PurchaseRepository {
     final normalizedReason = reason.trim();
 
     if (normalizedReason.isEmpty) {
-      throw ArgumentError(
-        'El motivo de anulación es obligatorio.',
-      );
+      throw ArgumentError('El motivo de anulación es obligatorio.');
     }
 
     await _database.transaction(() async {
@@ -573,14 +516,12 @@ class PurchaseRepository {
       }
 
       if (purchase.status != 'confirmed') {
-        throw StateError(
-          'Solo se pueden anular compras confirmadas.',
-        );
+        throw StateError('Solo se pueden anular compras confirmadas.');
       }
 
-      await (_database.update(_database.purchases)
-            ..where((row) => row.id.equals(purchaseId)))
-          .write(
+      await (_database.update(
+        _database.purchases,
+      )..where((row) => row.id.equals(purchaseId))).write(
         PurchasesCompanion(
           status: const Value('cancelled'),
           cancelledAt: Value(DateTime.now()),
@@ -598,13 +539,13 @@ class PurchaseRepository {
     await _database.transaction(() async {
       await _requireDraftPurchase(purchaseId);
 
-      await (_database.delete(_database.purchaseDetails)
-            ..where((detail) => detail.purchaseId.equals(purchaseId)))
-          .go();
+      await (_database.delete(
+        _database.purchaseDetails,
+      )..where((detail) => detail.purchaseId.equals(purchaseId))).go();
 
-      await (_database.delete(_database.purchases)
-            ..where((purchase) => purchase.id.equals(purchaseId)))
-          .go();
+      await (_database.delete(
+        _database.purchases,
+      )..where((purchase) => purchase.id.equals(purchaseId))).go();
     });
   }
 
@@ -636,9 +577,7 @@ class PurchaseRepository {
     )..where((row) => row.id.equals(supplierId))).getSingleOrNull();
 
     if (supplier == null || !supplier.isActive) {
-      throw StateError(
-        'El proveedor no existe o está inactivo.',
-      );
+      throw StateError('El proveedor no existe o está inactivo.');
     }
 
     return supplier;
@@ -650,9 +589,7 @@ class PurchaseRepository {
     )..where((row) => row.id.equals(productId))).getSingleOrNull();
 
     if (product == null || !product.isActive) {
-      throw StateError(
-        'El producto no existe o está inactivo.',
-      );
+      throw StateError('El producto no existe o está inactivo.');
     }
 
     return product;
@@ -664,9 +601,7 @@ class PurchaseRepository {
     )..where((row) => row.code.equals(currencyCode))).getSingleOrNull();
 
     if (currency == null || !currency.isActive) {
-      throw StateError(
-        'La moneda no existe o está inactiva.',
-      );
+      throw StateError('La moneda no existe o está inactiva.');
     }
 
     return currency;
@@ -685,17 +620,16 @@ class PurchaseRepository {
       return Decimal.one;
     }
 
-    final rate = await (_database.select(_database.exchangeRates)
-          ..where(
-            (row) =>
-                row.currencyCode.equals(currencyCode) &
-                row.effectiveAt.isSmallerOrEqualValue(date),
-          )
-          ..orderBy([
-            (row) => OrderingTerm.desc(row.effectiveAt),
-          ])
-          ..limit(1))
-        .getSingleOrNull();
+    final rate =
+        await (_database.select(_database.exchangeRates)
+              ..where(
+                (row) =>
+                    row.currencyCode.equals(currencyCode) &
+                    row.effectiveAt.isSmallerOrEqualValue(date),
+              )
+              ..orderBy([(row) => OrderingTerm.desc(row.effectiveAt)])
+              ..limit(1))
+            .getSingleOrNull();
 
     if (rate == null) {
       throw StateError(
@@ -707,9 +641,7 @@ class PurchaseRepository {
     final parsedRate = Decimal.parse(rate.rateToBase);
 
     if (parsedRate <= Decimal.zero) {
-      throw StateError(
-        'La tasa de cambio almacenada no es válida.',
-      );
+      throw StateError('La tasa de cambio almacenada no es válida.');
     }
 
     return parsedRate;
@@ -719,9 +651,7 @@ class PurchaseRepository {
     final normalized = value.trim().toUpperCase();
 
     if (!RegExp(r'^[A-Z]{3}$').hasMatch(normalized)) {
-      throw ArgumentError(
-        'El código de moneda debe contener tres letras.',
-      );
+      throw ArgumentError('El código de moneda debe contener tres letras.');
     }
 
     return normalized;
@@ -739,24 +669,18 @@ class PurchaseRepository {
 
   void _validateStatus(String status) {
     if (!_validStatuses.contains(status)) {
-      throw ArgumentError(
-        'Estado de compra no válido: $status.',
-      );
+      throw ArgumentError('Estado de compra no válido: $status.');
     }
   }
 
-  String _adjustmentTypeToDatabase(
-    PurchaseAdjustmentType type,
-  ) {
+  String _adjustmentTypeToDatabase(PurchaseAdjustmentType type) {
     return switch (type) {
       PurchaseAdjustmentType.fixed => 'fixed',
       PurchaseAdjustmentType.percentage => 'percentage',
     };
   }
 
-  String? _percentageToDatabase(
-    PurchaseAdjustmentInput adjustment,
-  ) {
+  String? _percentageToDatabase(PurchaseAdjustmentInput adjustment) {
     if (adjustment.type == PurchaseAdjustmentType.fixed) {
       return null;
     }

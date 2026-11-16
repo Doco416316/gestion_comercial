@@ -198,7 +198,7 @@ void main() {
     await verifyMigrationFrom(5);
   });
 
-  Future<void> verifyMigrationFrom7To11() async {
+  Future<void> verifyMigrationFrom7To12() async {
     const timestamp = 1735689600000;
 
     final executor = NativeDatabase.memory(
@@ -451,6 +451,7 @@ void main() {
         'purchase_receipts',
         'purchase_receipt_details',
         'supplier_payments',
+        'customers',
       };
 
       expect(tableNames, containsAll(newTables));
@@ -476,6 +477,7 @@ void main() {
         'idx_purchase_receipts_purchase',
         'idx_receipt_details_purchase_detail',
         'idx_supplier_payments_purchase',
+        'unique_customer_document',
       };
 
       expect(indexNames, containsAll(expectedIndexes));
@@ -489,7 +491,7 @@ void main() {
           .customSelect('PRAGMA user_version')
           .getSingle();
 
-      expect(versionRow.read<int>('user_version'), 11);
+      expect(versionRow.read<int>('user_version'), 12);
 
       // Comprueba la integridad de las relaciones.
       final foreignKeyViolations = await database
@@ -502,7 +504,7 @@ void main() {
     }
   }
 
-  Future<void> verifyMigrationFrom9To11() async {
+  Future<void> verifyMigrationFrom9To12() async {
     const timestamp = 1735689600000;
 
     final executor = NativeDatabase.memory(
@@ -534,6 +536,19 @@ void main() {
             is_active INTEGER NOT NULL DEFAULT 1,
             created_at INTEGER NOT NULL DEFAULT 0,
             updated_at INTEGER NOT NULL DEFAULT 0
+          )
+        ''');
+
+        db.execute('''
+          CREATE TABLE exchange_rates (
+            id TEXT NOT NULL PRIMARY KEY,
+            currency_code TEXT NOT NULL,
+            rate_to_base TEXT NOT NULL,
+            effective_at INTEGER NOT NULL,
+            created_by_user_id TEXT,
+            created_at INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY (currency_code)
+              REFERENCES currencies(code)
           )
         ''');
 
@@ -906,13 +921,406 @@ void main() {
           .customSelect('PRAGMA user_version')
           .getSingle();
 
-      expect(versionRow.read<int>('user_version'), 11);
+      expect(versionRow.read<int>('user_version'), 12);
     } finally {
       await database.close();
     }
   }
 
-  test('migra correctamente de version 7 a 11', verifyMigrationFrom7To11);
+  Future<void> verifyMigrationFrom11To12() async {
+    const timestamp = 1735689600000;
 
-  test('migra correctamente de version 9 a 11', verifyMigrationFrom9To11);
+    final executor = NativeDatabase.memory(
+      setup: (db) {
+        db.execute('PRAGMA foreign_keys = ON');
+
+        db.execute('''
+        CREATE TABLE currencies (
+          code TEXT NOT NULL PRIMARY KEY,
+          name TEXT NOT NULL,
+          symbol TEXT NOT NULL,
+          decimal_digits INTEGER NOT NULL DEFAULT 2,
+          is_active INTEGER NOT NULL DEFAULT 1,
+          is_base INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL DEFAULT 0
+        )
+      ''');
+
+        db.execute('''
+        CREATE TABLE products (
+          id TEXT NOT NULL PRIMARY KEY,
+          sku TEXT NOT NULL UNIQUE,
+          name TEXT NOT NULL,
+          description TEXT,
+          category TEXT,
+          unit TEXT NOT NULL DEFAULT 'unidad',
+          track_inventory INTEGER NOT NULL DEFAULT 1,
+          is_active INTEGER NOT NULL DEFAULT 1,
+          created_at INTEGER NOT NULL DEFAULT 0,
+          updated_at INTEGER NOT NULL DEFAULT 0
+        )
+      ''');
+
+        db.execute('''
+        CREATE TABLE suppliers (
+          id TEXT NOT NULL PRIMARY KEY,
+          name TEXT NOT NULL,
+          tax_id TEXT,
+          phone TEXT,
+          email TEXT,
+          address TEXT,
+          notes TEXT,
+          is_active INTEGER NOT NULL DEFAULT 1,
+          created_at INTEGER NOT NULL DEFAULT 0,
+          updated_at INTEGER NOT NULL DEFAULT 0
+        )
+      ''');
+
+        db.execute('''
+        CREATE TABLE exchange_rates (
+          id TEXT NOT NULL PRIMARY KEY,
+          currency_code TEXT NOT NULL,
+          rate_to_base TEXT NOT NULL,
+          effective_at INTEGER NOT NULL,
+          created_by_user_id TEXT,
+          created_at INTEGER NOT NULL DEFAULT 0,
+          FOREIGN KEY (currency_code)
+            REFERENCES currencies(code)
+        )
+      ''');
+
+        db.execute('''
+        CREATE TABLE purchases (
+          id TEXT NOT NULL PRIMARY KEY,
+          supplier_id TEXT NOT NULL,
+          document_number TEXT,
+          purchase_date INTEGER NOT NULL,
+          currency_code TEXT NOT NULL,
+          exchange_rate_to_base_snapshot TEXT NOT NULL,
+          subtotal_minor_units INTEGER NOT NULL,
+          discount_minor_units INTEGER NOT NULL DEFAULT 0,
+          tax_minor_units INTEGER NOT NULL DEFAULT 0,
+          total_minor_units INTEGER NOT NULL,
+          notes TEXT,
+          status TEXT NOT NULL DEFAULT 'draft',
+          confirmed_at INTEGER,
+          cancelled_at INTEGER,
+          cancellation_reason TEXT,
+          created_at INTEGER NOT NULL DEFAULT 0,
+          FOREIGN KEY (supplier_id)
+            REFERENCES suppliers(id) ON DELETE RESTRICT,
+          FOREIGN KEY (currency_code)
+            REFERENCES currencies(code)
+        )
+      ''');
+
+        db.execute('''
+        CREATE TABLE purchase_details (
+          id TEXT NOT NULL PRIMARY KEY,
+          purchase_id TEXT NOT NULL,
+          product_id TEXT NOT NULL,
+          sku_snapshot TEXT NOT NULL,
+          product_name_snapshot TEXT NOT NULL,
+          unit_snapshot TEXT NOT NULL,
+          quantity_milli_units INTEGER NOT NULL,
+          unit_cost_minor_units INTEGER NOT NULL,
+          discount_minor_units INTEGER NOT NULL DEFAULT 0,
+          discount_type TEXT NOT NULL DEFAULT 'fixed',
+          discount_rate TEXT,
+          tax_minor_units INTEGER NOT NULL DEFAULT 0,
+          tax_type TEXT NOT NULL DEFAULT 'fixed',
+          tax_rate TEXT,
+          total_minor_units INTEGER NOT NULL,
+          FOREIGN KEY (purchase_id)
+            REFERENCES purchases(id) ON DELETE RESTRICT,
+          FOREIGN KEY (product_id)
+            REFERENCES products(id) ON DELETE RESTRICT
+        )
+      ''');
+
+        db.execute('''
+        CREATE TABLE inventory_movements (
+          id TEXT NOT NULL PRIMARY KEY,
+          product_id TEXT NOT NULL,
+          movement_type TEXT NOT NULL,
+          quantity_milli_units INTEGER NOT NULL,
+          reason TEXT NOT NULL,
+          reference TEXT,
+          correction_of_id TEXT,
+          created_at INTEGER NOT NULL DEFAULT 0,
+          FOREIGN KEY (product_id)
+            REFERENCES products(id) ON DELETE RESTRICT,
+          FOREIGN KEY (correction_of_id)
+            REFERENCES inventory_movements(id) ON DELETE RESTRICT
+        )
+      ''');
+
+        db.execute('''
+        CREATE TABLE purchase_receipts (
+          id TEXT NOT NULL PRIMARY KEY,
+          purchase_id TEXT NOT NULL
+            REFERENCES purchases(id) ON DELETE RESTRICT,
+          received_at INTEGER NOT NULL,
+          reference TEXT,
+          notes TEXT,
+          created_at INTEGER NOT NULL DEFAULT 0
+        )
+      ''');
+
+        db.execute('''
+        CREATE TABLE purchase_receipt_details (
+          id TEXT NOT NULL PRIMARY KEY,
+          receipt_id TEXT NOT NULL
+            REFERENCES purchase_receipts(id) ON DELETE RESTRICT,
+          purchase_detail_id TEXT NOT NULL
+            REFERENCES purchase_details(id) ON DELETE RESTRICT,
+          quantity_milli_units INTEGER NOT NULL,
+          inventory_movement_id TEXT
+            REFERENCES inventory_movements(id) ON DELETE RESTRICT
+        )
+      ''');
+
+        db.execute('''
+        CREATE TABLE supplier_payments (
+          id TEXT NOT NULL PRIMARY KEY,
+          purchase_id TEXT NOT NULL
+            REFERENCES purchases(id) ON DELETE RESTRICT,
+          amount_minor_units INTEGER NOT NULL,
+          currency_code TEXT NOT NULL
+            REFERENCES currencies(code),
+          exchange_rate_to_base_snapshot TEXT NOT NULL,
+          applied_amount_minor_units INTEGER NOT NULL,
+          payment_date INTEGER NOT NULL,
+          payment_method TEXT NOT NULL,
+          reference TEXT,
+          notes TEXT,
+          created_at INTEGER NOT NULL DEFAULT 0
+        )
+      ''');
+
+        db.execute('''
+        INSERT INTO currencies (
+          code, name, symbol, decimal_digits, is_active, is_base
+        )
+        VALUES ('CUP', 'Peso cubano', 'CUP', 2, 1, 1)
+      ''');
+
+        db.execute('''
+        INSERT INTO suppliers (id, name)
+        VALUES ('supplier-1', 'Proveedor histórico')
+      ''');
+
+        db.execute('''
+        INSERT INTO products (id, sku, name)
+        VALUES ('product-1', 'SKU-001', 'Producto histórico')
+      ''');
+
+        db.execute('''
+        INSERT INTO purchases (
+          id,
+          supplier_id,
+          purchase_date,
+          currency_code,
+          exchange_rate_to_base_snapshot,
+          subtotal_minor_units,
+          discount_minor_units,
+          tax_minor_units,
+          total_minor_units,
+          status,
+          confirmed_at,
+          created_at
+        )
+        VALUES (
+          'purchase-1',
+          'supplier-1',
+          $timestamp,
+          'CUP',
+          '1',
+          10000,
+          0,
+          0,
+          10000,
+          'confirmed',
+          $timestamp,
+          $timestamp
+        )
+      ''');
+
+        db.execute('PRAGMA user_version = 11');
+      },
+    );
+
+    final database = AppDatabase.forTesting(executor);
+
+    try {
+      // Fuerza la apertura y migración.
+      final customersTable = await database.customSelect('''
+      SELECT name
+      FROM sqlite_master
+      WHERE type = 'table'
+        AND name = 'customers'
+    ''').get();
+
+      expect(customersTable, hasLength(1));
+
+      // Comprueba que el índice único existe.
+      final indexes = await database.customSelect('''
+      SELECT name
+      FROM sqlite_master
+      WHERE type = 'index'
+        AND name = 'unique_customer_document'
+    ''').get();
+
+      expect(indexes, hasLength(1));
+
+      // Cliente individual válido.
+      await database.customStatement('''
+      INSERT INTO customers (
+        id,
+        customer_type,
+        name,
+        document_type,
+        document_number
+      )
+      VALUES (
+        'customer-1',
+        'individual',
+        'Cliente individual',
+        'CI',
+        '123456'
+      )
+    ''');
+
+      // Empresa válida sin documento.
+      await database.customStatement('''
+      INSERT INTO customers (
+        id,
+        customer_type,
+        name
+      )
+      VALUES (
+        'customer-2',
+        'business',
+        'Empresa de prueba'
+      )
+    ''');
+
+      // No debe aceptar documentos duplicados.
+      await expectLater(
+        database.customStatement('''
+        INSERT INTO customers (
+          id,
+          customer_type,
+          name,
+          document_type,
+          document_number
+        )
+        VALUES (
+          'customer-3',
+          'individual',
+          'Otro cliente',
+          'CI',
+          '123456'
+        )
+      '''),
+        throwsA(anything),
+      );
+
+      // No debe aceptar tipos desconocidos.
+      await expectLater(
+        database.customStatement('''
+        INSERT INTO customers (
+          id,
+          customer_type,
+          name
+        )
+        VALUES (
+          'customer-invalid-type',
+          'unknown',
+          'Cliente inválido'
+        )
+      '''),
+        throwsA(anything),
+      );
+
+      // No debe aceptar nombres vacíos.
+      await expectLater(
+        database.customStatement('''
+        INSERT INTO customers (
+          id,
+          customer_type,
+          name
+        )
+        VALUES (
+          'customer-invalid-name',
+          'individual',
+          '   '
+        )
+      '''),
+        throwsA(anything),
+      );
+
+      // Tipo y número de documento deben proporcionarse juntos.
+      await expectLater(
+        database.customStatement('''
+        INSERT INTO customers (
+          id,
+          customer_type,
+          name,
+          document_type
+        )
+        VALUES (
+          'customer-invalid-document',
+          'individual',
+          'Cliente inválido',
+          'CI'
+        )
+      '''),
+        throwsA(anything),
+      );
+
+      // La protección también debe actuar al actualizar.
+      await expectLater(
+        database.customStatement('''
+        UPDATE customers
+        SET customer_type = 'unknown'
+        WHERE id = 'customer-1'
+      '''),
+        throwsA(anything),
+      );
+
+      // Los dos clientes válidos deben conservarse.
+      final customers = await database.customSelect('''
+      SELECT id, customer_type, name
+      FROM customers
+      ORDER BY id
+    ''').get();
+
+      expect(customers, hasLength(2));
+      expect(customers.first.read<String>('id'), 'customer-1');
+      expect(customers.last.read<String>('id'), 'customer-2');
+
+      // Comprueba integridad referencial.
+      final foreignKeyViolations = await database
+          .customSelect('PRAGMA foreign_key_check')
+          .get();
+
+      expect(foreignKeyViolations, isEmpty);
+
+      // Comprueba versión final.
+      final versionRow = await database
+          .customSelect('PRAGMA user_version')
+          .getSingle();
+
+      expect(versionRow.read<int>('user_version'), 12);
+    } finally {
+      await database.close();
+    }
+  }
+
+  test('migra correctamente de version 7 a 12', verifyMigrationFrom7To12);
+
+  test('migra correctamente de version 9 a 12', verifyMigrationFrom9To12);
+
+  test('migra correctamente de version 11 a 12', verifyMigrationFrom11To12);
 }
