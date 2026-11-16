@@ -14,23 +14,23 @@ class MainLayout extends StatelessWidget {
   // Datos únicos de los 4 destinos
   static const _items =
       <({IconData icon, IconData selectedIcon, String label})>[
-    (icon: Icons.home_outlined, selectedIcon: Icons.home, label: 'Inicio'),
-    (
-      icon: Icons.inventory_2_outlined,
-      selectedIcon: Icons.inventory_2,
-      label: 'Productos'
-    ),
-    (
-      icon: Icons.warehouse_outlined,
-      selectedIcon: Icons.warehouse,
-      label: 'Inventario'
-    ),
-    (
-      icon: Icons.shopping_cart_outlined,
-      selectedIcon: Icons.shopping_cart,
-      label: 'Compras'
-    ),
-  ];
+        (icon: Icons.home_outlined, selectedIcon: Icons.home, label: 'Inicio'),
+        (
+          icon: Icons.inventory_2_outlined,
+          selectedIcon: Icons.inventory_2,
+          label: 'Productos',
+        ),
+        (
+          icon: Icons.warehouse_outlined,
+          selectedIcon: Icons.warehouse,
+          label: 'Inventario',
+        ),
+        (
+          icon: Icons.shopping_cart_outlined,
+          selectedIcon: Icons.shopping_cart,
+          label: 'Compras',
+        ),
+      ];
 
   @override
   Widget build(BuildContext context) {
@@ -60,22 +60,22 @@ class MainLayout extends StatelessWidget {
   }
 
   List<NavigationRailDestination> _railDestinations() => [
-        for (final i in _items)
-          NavigationRailDestination(
-            icon: Icon(i.icon),
-            selectedIcon: Icon(i.selectedIcon),
-            label: Text(i.label),
-          ),
-      ];
+    for (final i in _items)
+      NavigationRailDestination(
+        icon: Icon(i.icon),
+        selectedIcon: Icon(i.selectedIcon),
+        label: Text(i.label),
+      ),
+  ];
 
   List<NavigationDestination> _barDestinations() => [
-        for (final i in _items)
-          NavigationDestination(
-            icon: Icon(i.icon),
-            selectedIcon: Icon(i.selectedIcon),
-            label: i.label,
-          ),
-      ];
+    for (final i in _items)
+      NavigationDestination(
+        icon: Icon(i.icon),
+        selectedIcon: Icon(i.selectedIcon),
+        label: i.label,
+      ),
+  ];
 
   int _calculateSelectedIndex() {
     if (currentLocation.startsWith('/productos')) return 1;
