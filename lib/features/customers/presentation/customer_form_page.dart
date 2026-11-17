@@ -178,15 +178,15 @@ class _CustomerFormPageState extends ConsumerState<CustomerFormPage> {
 
       if (!mounted) return;
 
-      //ScaffoldMessenger.of(context).showSnackBar(
-      //  SnackBar(
-      //    content: Text(
-      //      _isEditing
-      //          ? 'Cliente actualizado correctamente.'
-      //          : 'Cliente registrado correctamente.',
-      //    ),
-      //  ),
-      //);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _isEditing
+                ? 'Cliente actualizado correctamente.'
+                : 'Cliente registrado correctamente.',
+          ),
+        ),
+      );
 
       context.pop();
     } catch (error) {

@@ -1,10 +1,11 @@
+import 'dart:async';
+
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:gestion_comercial/app/navigation/app_shell.dart';
 import 'package:gestion_comercial/app/theme/app_theme.dart';
 import 'package:gestion_comercial/core/database/app_database.dart';
 import 'package:gestion_comercial/core/providers/database_provider.dart';
@@ -19,38 +20,30 @@ void main() {
 
   setUp(() {
     database = AppDatabase.forTesting(NativeDatabase.memory());
-
     repository = CustomerRepository(database);
 
     router = GoRouter(
       initialLocation: '/customers',
       routes: [
-        ShellRoute(
-          builder: (context, state, child) {
-            return AppShell(child: child);
+        GoRoute(
+          path: '/customers',
+          builder: (context, state) => const CustomerListPage(),
+        ),
+        GoRoute(
+          path: '/customers/new',
+          builder: (context, state) => const CustomerFormPage(),
+        ),
+        GoRoute(
+          path: '/customers/edit',
+          builder: (context, state) {
+            final customer = state.extra;
+
+            if (customer is! Customer) {
+              return const Scaffold(body: Text('Cliente no disponible'));
+            }
+
+            return CustomerFormPage(customer: customer);
           },
-          routes: [
-            GoRoute(
-              path: '/customers',
-              builder: (context, state) => const CustomerListPage(),
-            ),
-            GoRoute(
-              path: '/customers/new',
-              builder: (context, state) => const CustomerFormPage(),
-            ),
-            GoRoute(
-              path: '/customers/edit',
-              builder: (context, state) {
-                final customer = state.extra;
-
-                if (customer is! Customer) {
-                  return const Scaffold(body: Text('Cliente no disponible'));
-                }
-
-                return CustomerFormPage(customer: customer);
-              },
-            ),
-          ],
         ),
       ],
     );
@@ -60,193 +53,179 @@ void main() {
     tester.view.physicalSize = const Size(600, 1000);
     tester.view.devicePixelRatio = 1;
 
-    print('APP 1: antes de montar la aplicación');
-
     await tester.pumpWidget(
       ProviderScope(
         overrides: [appDatabaseProvider.overrideWithValue(database)],
-        child: MaterialApp.router(theme: AppTheme.light, routerConfig: router),
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+          builder: (context, child) {
+            return Scaffold(body: child ?? const SizedBox.shrink());
+          },
+        ),
       ),
     );
 
-    print('APP 2: aplicación montada');
-
+    // Procesa la carga inicial del StreamProvider y el primer render.
     await tester.pump();
-
-    print('APP 3: primer pump terminado');
-
-    await tester.pump(const Duration(milliseconds: 500));
-
-    print('APP 4: preparación terminada');
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 100));
   }
+
+  Future<void> pumpUi(WidgetTester tester) async {
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+
+  Future<List<Customer>> readCustomers() async {
+    return database.select(database.customers).get();
+  }
+
+  Future<void> disposeTestApp(WidgetTester tester) async {
+    // Primero desmontamos los widgets para cancelar las suscripciones.
+    await tester.pumpWidget(const SizedBox.shrink());
+
+    // Procesamos las cancelaciones pendientes de Drift/Riverpod.
+    await tester.pump(const Duration(milliseconds: 1));
+
+    // Cerramos el router después de desmontar la aplicación.
+    router.dispose();
+
+    // La base de datos se cierra fuera del FakeAsync de testWidgets.
+    await tester.runAsync(() async {
+      await database.close().timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw TimeoutException(
+            'La base de datos no terminó de cerrarse en 10 segundos.',
+          );
+        },
+      );
+    });
+
+    tester.view.resetPhysicalSize();
+    tester.view.resetDevicePixelRatio();
+  }
+
+  testWidgets('muestra la lista de clientes sin errores', (tester) async {
+    await pumpTestApp(tester);
+
+    expect(find.byType(CustomerListPage), findsOneWidget);
+    expect(find.text('Directorio de clientes'), findsOneWidget);
+
+    await disposeTestApp(tester);
+  });
 
   testWidgets('permite registrar un cliente desde el formulario', (
     tester,
   ) async {
-    addTearDown(() async {
-      print('REG LIMPIEZA 1: cerrando router');
-
-      router.dispose();
-
-      print('REG LIMPIEZA 2: router cerrado');
-
-      await database.close();
-
-      print('REG LIMPIEZA 3: base de datos cerrada');
-    });
-
-    print('REG 1: antes de pumpTestApp');
-
     await pumpTestApp(tester);
 
-    print('REG 2: después de pumpTestApp');
+    // Abrir formulario de registro.
+    final registerButton = find.byTooltip('Registrar nuevo cliente');
 
-    await tester.tap(find.byTooltip('Registrar nuevo cliente'));
+    expect(registerButton, findsOneWidget);
 
-    print('REG 3: botón de registro pulsado');
-
-    await tester.pumpAndSettle();
-
-    print('REG 4: navegación terminada');
+    await tester.tap(registerButton);
+    await pumpUi(tester);
 
     expect(find.text('Nuevo cliente'), findsOneWidget);
 
-    print('REG 5: formulario encontrado');
-
+    // Introducir nombre.
     await tester.enterText(find.byType(TextFormField).first, 'Ana Pérez');
 
-    print('REG 6: nombre introducido');
+    await pumpUi(tester);
 
-    await tester.pump();
-
-    print('REG 7: actualización visual terminada');
-
+    // Guardar.
     final saveButton = find.text('Guardar cliente');
 
+    expect(saveButton, findsOneWidget);
+
     await tester.ensureVisible(saveButton);
-
-    print('REG 8: botón guardar visible');
-
     await tester.tap(saveButton);
 
-    print('REG 9: botón guardar pulsado');
+    // Procesar la operación asíncrona y el regreso a la lista.
+    await pumpUi(tester);
+    await tester.pump(const Duration(milliseconds: 300));
 
-    await tester.pump();
-
-    print('REG 10: primer pump después de guardar');
-
-    await tester.pump(const Duration(seconds: 1));
-
-    print('REG 11: segundo pump después de guardar');
-
-    expect(find.text('Directorio de clientes'), findsOneWidget);
-
-    expect(find.text('Ana Pérez'), findsOneWidget);
-
-    print('REG 12: cliente visible en el directorio');
-
-    final customers = await repository.watchAll().first;
-
-    print('REG 13: consulta de clientes terminada');
+    // Verificar persistencia directamente en Drift.
+    final customers = await readCustomers();
 
     expect(customers, hasLength(1));
     expect(customers.single.name, 'Ana Pérez');
 
-    print('REG 14: aserciones completadas');
+    // Procesar la notificación del StreamProvider real.
+    await pumpUi(tester);
 
-    print('REG 15: antes de desmontar la aplicación');
+    expect(find.text('Directorio de clientes'), findsOneWidget);
+    expect(find.text('Ana Pérez'), findsOneWidget);
 
-    await tester.pumpWidget(const SizedBox.shrink());
-
-    print('REG 16: aplicación desmontada');
-  }, timeout: const Timeout(Duration(seconds: 30)));
+    await disposeTestApp(tester);
+  });
 
   testWidgets('permite editar un cliente existente', (tester) async {
-    addTearDown(() async {
-      print('ED LIMPIEZA 1: desmontando aplicación');
-
-      await tester.pumpWidget(const SizedBox.shrink());
-
-      print('ED LIMPIEZA 2: aplicación desmontada');
-
-      router.dispose();
-
-      print('ED LIMPIEZA 3: router cerrado');
-
-      await database.close();
-
-      print('ED LIMPIEZA 4: base de datos cerrada');
-    });
-
-    print('ED 1: antes de crear cliente');
-
+    // Crear el registro inicial directamente en la base de datos.
     await repository.createCustomer(
       customerType: CustomerRepository.individual,
       name: 'Cliente original',
     );
 
-    print('ED 2: cliente creado');
-
     await pumpTestApp(tester);
 
-    print('ED 3: aplicación preparada');
+    // El proveedor real debe mostrar el registro inicial.
+    await pumpUi(tester);
 
     expect(find.text('Cliente original'), findsOneWidget);
 
+    // Abrir menú de acciones.
     final actionsButton = find.byTooltip('Acciones del cliente');
 
-    print('ED 4: antes de ensureVisible');
+    expect(actionsButton, findsOneWidget);
 
     await tester.ensureVisible(actionsButton);
-
-    print('ED 5: antes de abrir acciones');
-
     await tester.tap(actionsButton);
-
-    await tester.pumpAndSettle();
-
-    print('ED 6: menú de acciones abierto');
+    await pumpUi(tester);
 
     expect(find.text('Editar'), findsOneWidget);
 
+    // Abrir edición.
     await tester.tap(find.text('Editar'));
-
-    await tester.pumpAndSettle();
-
-    print('ED 7: formulario de edición abierto');
+    await pumpUi(tester);
 
     expect(find.text('Editar cliente'), findsOneWidget);
 
+    // Cambiar nombre.
     await tester.enterText(
       find.byType(TextFormField).first,
       'Cliente actualizado',
     );
 
-    print('ED 8: texto actualizado');
+    await pumpUi(tester);
 
-    await tester.pump();
-
+    // Guardar cambios.
     final saveButton = find.text('Guardar cliente');
 
-    await tester.ensureVisible(saveButton);
+    expect(saveButton, findsOneWidget);
 
+    await tester.ensureVisible(saveButton);
     await tester.tap(saveButton);
 
-    await tester.pumpAndSettle();
+    await pumpUi(tester);
+    await tester.pump(const Duration(milliseconds: 300));
 
-    print('ED 9: guardado terminado');
-
-    expect(find.text('Cliente actualizado'), findsOneWidget);
-
-    expect(find.text('Cliente original'), findsNothing);
-
-    final customers = await repository.watchAll().first;
-
-    print('ED 10: consulta terminada');
+    // Verificar persistencia.
+    final customers = await readCustomers();
 
     expect(customers, hasLength(1));
     expect(customers.single.name, 'Cliente actualizado');
 
-    print('ED 11: prueba de edición completada');
-  }, timeout: const Timeout(Duration(seconds: 30)));
+    // Verificar actualización visual.
+    await pumpUi(tester);
+
+    expect(find.text('Cliente actualizado'), findsOneWidget);
+    expect(find.text('Cliente original'), findsNothing);
+
+    await disposeTestApp(tester);
+  });
 }

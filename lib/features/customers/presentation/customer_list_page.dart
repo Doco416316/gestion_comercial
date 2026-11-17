@@ -26,10 +26,12 @@ class _CustomerListPageState extends ConsumerState<CustomerListPage> {
   }
 
   Future<void> _createCustomer() async {
+    if (!mounted) return;
     await context.push('/customers/new');
   }
 
   Future<void> _editCustomer(Customer customer) async {
+    if (!mounted) return;
     await context.push('/customers/edit', extra: customer);
   }
 
@@ -126,11 +128,11 @@ class _CustomerListPageState extends ConsumerState<CustomerListPage> {
   }
 
   List<Customer> _filterCustomers(List<Customer> customers) {
+    final query = _searchQuery.trim().toLowerCase();
+
     return customers.where((customer) {
       final matchesType =
           _typeFilter == 'all' || customer.customerType == _typeFilter;
-
-      final query = _searchQuery.trim().toLowerCase();
 
       final searchableText = [
         customer.name,

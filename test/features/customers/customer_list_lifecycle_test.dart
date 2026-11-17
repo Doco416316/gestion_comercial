@@ -40,8 +40,6 @@ void main() {
       ],
     );
 
-    print('NAV 1: recursos creados');
-
     await tester.pumpWidget(
       ProviderScope(
         overrides: [appDatabaseProvider.overrideWithValue(database)],
@@ -51,29 +49,21 @@ void main() {
 
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
-    print('NAV 2: lista preparada');
 
     router.push('/customers/new');
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
-    print('NAV 3: formulario abierto');
 
     router.pop();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
-    print('NAV 4: regreso a la lista');
 
     await tester.pumpWidget(const SizedBox.shrink());
-    print('NAV 5: aplicación desmontada');
 
     await tester.pump(const Duration(milliseconds: 1));
     await tester.pump(const Duration(milliseconds: 1));
-    print('NAV 6: ciclos de limpieza completados');
 
     router.dispose();
-    print('NAV 7: router cerrado');
-
     await database.close();
-    print('NAV 8: base de datos cerrada');
   }, timeout: const Timeout(Duration(seconds: 30)));
 }
