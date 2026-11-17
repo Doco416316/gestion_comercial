@@ -183,7 +183,7 @@ void main() {
     expect(find.byType(AlertDialog), findsOneWidget);
     expect(find.text('Código'), findsOneWidget);
     expect(find.text('Nombre'), findsOneWidget);
-    expect(find.text('Símbodo'), findsOneWidget);
+    expect(find.text('Símbolo'), findsOneWidget);
   });
 
   testWidgets('Guardar deshabilitado si campos vacíos', (tester) async {
@@ -236,7 +236,7 @@ void main() {
 
     await tester.enterText(find.widgetWithText(TextField, 'Código'), 'EUR');
     await tester.enterText(find.widgetWithText(TextField, 'Nombre'), 'Euro');
-    await tester.enterText(find.widgetWithText(TextField, 'Símbodo'), 'EUR');
+    await tester.enterText(find.widgetWithText(TextField, 'Símbolo'), 'EUR');
     await tester.pump();
 
     await tester.tap(find.widgetWithText(FilledButton, 'Guardar'));
@@ -270,7 +270,7 @@ void main() {
 
     await tester.enterText(find.widgetWithText(TextField, 'Código'), 'EUR');
     await tester.enterText(find.widgetWithText(TextField, 'Nombre'), 'Euro');
-    await tester.enterText(find.widgetWithText(TextField, 'Símbodo'), 'EUR');
+    await tester.enterText(find.widgetWithText(TextField, 'Símbolo'), 'EUR');
     await tester.pump();
 
     await tester.tap(find.widgetWithText(FilledButton, 'Guardar'));
