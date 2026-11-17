@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gestion_comercial/app/app.dart';
+import 'package:gestion_comercial/app/router/app_router.dart';
 
 void main() {
+  setUp(() => appRouter.go('/dashboard'));
+
   Future<void> pumpApp(WidgetTester tester, Size size) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1.0;
@@ -14,7 +17,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('En pantalla ancha muestra NavigationRail con 4 destinos', (
+  testWidgets('En pantalla ancha muestra NavigationRail con 6 destinos', (
     tester,
   ) async {
     await pumpApp(tester, const Size(1200, 800));
@@ -22,7 +25,14 @@ void main() {
     expect(find.byType(NavigationRail), findsOneWidget);
     expect(find.byType(NavigationBar), findsNothing);
 
-    for (final label in ['Inicio', 'Productos', 'Inventario', 'Compras']) {
+    for (final label in [
+      'Inicio',
+      'Productos',
+      'Inventario',
+      'Compras',
+      'Ajustes',
+      'Proveedores',
+    ]) {
       expect(
         find.descendant(
           of: find.byType(NavigationRail),
@@ -59,5 +69,23 @@ void main() {
 
     final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
     expect(rail.selectedIndex, 1);
+  });
+
+  testWidgets('Navegar a Proveedores cambia el destino seleccionado', (
+    tester,
+  ) async {
+    await pumpApp(tester, const Size(1200, 800));
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationRail),
+        matching: find.text('Proveedores'),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
+    expect(rail.selectedIndex, 5);
   });
 }

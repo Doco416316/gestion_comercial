@@ -11,7 +11,7 @@ class MainLayout extends StatelessWidget {
     required this.currentLocation,
   });
 
-  // Datos únicos de los 4 destinos
+  // Datos únicos de los 6 destinos
   static const _items =
       <({IconData icon, IconData selectedIcon, String label})>[
         (icon: Icons.home_outlined, selectedIcon: Icons.home, label: 'Inicio'),
@@ -34,6 +34,11 @@ class MainLayout extends StatelessWidget {
           icon: Icons.settings_outlined,
           selectedIcon: Icons.settings,
           label: 'Ajustes',
+        ),
+        (
+          icon: Icons.business_outlined,
+          selectedIcon: Icons.business,
+          label: 'Proveedores',
         ),
       ];
 
@@ -87,6 +92,7 @@ class MainLayout extends StatelessWidget {
     if (currentLocation.startsWith('/inventario')) return 2;
     if (currentLocation.startsWith('/compras')) return 3;
     if (currentLocation.startsWith('/ajustes')) return 4;
+    if (currentLocation.startsWith('/proveedores')) return 5;
     return 0;
   }
 
@@ -102,6 +108,8 @@ class MainLayout extends StatelessWidget {
         context.go('/compras');
       case 4:
         context.go('/ajustes/monedas');
+      case 5:
+        context.go('/proveedores');
     }
   }
 }
