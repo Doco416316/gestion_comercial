@@ -30,6 +30,11 @@ class MainLayout extends StatelessWidget {
           selectedIcon: Icons.shopping_cart,
           label: 'Compras',
         ),
+        (
+          icon: Icons.settings_outlined,
+          selectedIcon: Icons.settings,
+          label: 'Ajustes',
+        ),
       ];
 
   @override
@@ -81,6 +86,7 @@ class MainLayout extends StatelessWidget {
     if (currentLocation.startsWith('/productos')) return 1;
     if (currentLocation.startsWith('/inventario')) return 2;
     if (currentLocation.startsWith('/compras')) return 3;
+    if (currentLocation.startsWith('/ajustes')) return 4;
     return 0;
   }
 
@@ -94,6 +100,8 @@ class MainLayout extends StatelessWidget {
         context.go('/inventario');
       case 3:
         context.go('/compras');
+      case 4:
+        context.go('/ajustes/monedas');
     }
   }
 }

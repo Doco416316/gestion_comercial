@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../layout/main_layout.dart';
 import '../../features/dashboard/presentation/pages/dashboard_page.dart';
+import '../../features/settings/presentation/pages/currencies_page.dart';
 
 class PlaceholderPage extends StatelessWidget {
   final String title;
@@ -44,6 +45,10 @@ final appRouter = GoRouter(
         GoRoute(
           path: '/compras',
           builder: (context, state) => const PlaceholderPage(title: 'Compras'),
+        ),
+        GoRoute(
+          path: '/ajustes/monedas',
+          builder: (context, state) => const CurrenciesPage(),
         ),
       ],
     ),
