@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/database/app_database.dart';
+import '../features/customers/presentation/customer_form_page.dart';
 import '../features/customers/presentation/customer_list_page.dart';
+import '../features/inventory/presentation/inventory_page.dart';
+import '../features/products/presentation/product_form_page.dart';
+import '../features/products/presentation/product_list_page.dart';
+import '../features/suppliers/presentation/supplier_form_page.dart';
+import '../features/suppliers/presentation/supplier_list_page.dart';
 import 'navigation/app_shell.dart';
 import 'navigation/placeholder_page.dart';
 import 'theme/app_theme.dart';
-
-import '../features/customers/presentation/customer_form_page.dart';
-import '../core/database/app_database.dart';
 
 final GoRouter _router = GoRouter(
   initialLocation: '/',
@@ -51,27 +55,51 @@ final GoRouter _router = GoRouter(
         ),
         GoRoute(
           path: '/suppliers',
-          builder: (context, state) => const PlaceholderPage(
-            title: 'Proveedores',
-            description: 'Administración de proveedores.',
-            icon: Icons.local_shipping_outlined,
-          ),
+          builder: (context, state) => const SupplierListPage(),
+        ),
+        GoRoute(
+          path: '/suppliers/new',
+          builder: (context, state) => const SupplierFormPage(),
+        ),
+        GoRoute(
+          path: '/suppliers/edit',
+          builder: (context, state) {
+            final supplier = state.extra;
+            if (supplier is! Supplier) {
+              return const PlaceholderPage(
+                title: 'Proveedor no disponible',
+                description: 'No se recibieron los datos del proveedor.',
+                icon: Icons.error_outline,
+              );
+            }
+            return SupplierFormPage(supplier: supplier);
+          },
         ),
         GoRoute(
           path: '/products',
-          builder: (context, state) => const PlaceholderPage(
-            title: 'Productos',
-            description: 'Catálogo y gestión de productos.',
-            icon: Icons.inventory_2_outlined,
-          ),
+          builder: (context, state) => const ProductListPage(),
+        ),
+        GoRoute(
+          path: '/products/new',
+          builder: (context, state) => const ProductFormPage(),
+        ),
+        GoRoute(
+          path: '/products/edit',
+          builder: (context, state) {
+            final product = state.extra;
+            if (product is! Product) {
+              return const PlaceholderPage(
+                title: 'Producto no disponible',
+                description: 'No se recibieron los datos del producto.',
+                icon: Icons.error_outline,
+              );
+            }
+            return ProductFormPage(product: product);
+          },
         ),
         GoRoute(
           path: '/inventory',
-          builder: (context, state) => const PlaceholderPage(
-            title: 'Inventario',
-            description: 'Existencias y movimientos de inventario.',
-            icon: Icons.warehouse_outlined,
-          ),
+          builder: (context, state) => const InventoryPage(),
         ),
         GoRoute(
           path: '/purchases',

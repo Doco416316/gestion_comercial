@@ -3,6 +3,23 @@ import 'package:uuid/uuid.dart';
 
 import '../../../core/database/app_database.dart';
 
+class InventoryStock {
+  const InventoryStock({
+    required this.product,
+    required this.quantityMilliUnits,
+  });
+
+  final Product product;
+  final int quantityMilliUnits;
+}
+
+class InventoryMovementEntry {
+  const InventoryMovementEntry({required this.movement, required this.product});
+
+  final InventoryMovement movement;
+  final Product product;
+}
+
 class InventoryRepository {
   InventoryRepository(this._database);
 
@@ -38,6 +55,65 @@ class InventoryRepository {
 
   String _normalizeText(String value) => value.trim();
 
+  Stream<List<InventoryStock>> watchInventory() {
+    final query = _database.customSelect(
+      '''
+    SELECT
+      products.*,
+      COALESCE(inventory_balances.quantity_milli_units, 0)
+        AS current_quantity_milli_units
+    FROM products
+    LEFT JOIN inventory_balances
+      ON inventory_balances.product_id = products.id
+    WHERE products.track_inventory = 1
+      AND products.is_active = 1
+    ORDER BY products.name ASC
+    ''',
+      readsFrom: {
+        _database.products,
+        _database.inventoryBalances,
+        _database.inventoryMovements,
+      },
+    );
+
+    return query.watch().map(
+      (rows) => rows.map((row) {
+        return InventoryStock(
+          product: _database.products.map(row.data),
+          quantityMilliUnits: row.data['current_quantity_milli_units'] as int,
+        );
+      }).toList(),
+    );
+  }
+
+  Stream<List<InventoryMovementEntry>> watchRecentMovements({int limit = 100}) {
+    final query =
+        _database.select(_database.inventoryMovements).join([
+            innerJoin(
+              _database.products,
+              _database.products.id.equalsExp(
+                _database.inventoryMovements.productId,
+              ),
+            ),
+          ])
+          ..orderBy([
+            OrderingTerm.desc(_database.inventoryMovements.createdAt),
+            OrderingTerm.desc(_database.inventoryMovements.id),
+          ])
+          ..limit(limit);
+
+    return query.watch().map(
+      (rows) => rows
+          .map(
+            (row) => InventoryMovementEntry(
+              movement: row.readTable(_database.inventoryMovements),
+              product: row.readTable(_database.products),
+            ),
+          )
+          .toList(),
+    );
+  }
+
   Future<int> getStock(String productId) async {
     final balance = await (_database.select(
       _database.inventoryBalances,
@@ -58,7 +134,7 @@ class InventoryRepository {
     );
 
     return query.watchSingleOrNull().map(
-      (row) => row?.read<int>('quantity_milli_units') ?? 0,
+      (row) => row?.data['quantity_milli_units'] as int? ?? 0,
     );
   }
 

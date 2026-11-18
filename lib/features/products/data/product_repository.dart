@@ -118,11 +118,17 @@ class ProductRepository {
     });
   }
 
-  Stream<List<Product>> watchActiveProducts() {
-    return (_database.select(_database.products)
-          ..where((table) => table.isActive.equals(true))
-          ..orderBy([(table) => OrderingTerm.asc(table.name)]))
-        .watch();
+  Stream<List<Product>> watchActiveProducts() => watchAll();
+
+  Stream<List<Product>> watchAll({bool includeInactive = false}) {
+    final query = _database.select(_database.products);
+
+    if (!includeInactive) {
+      query.where((table) => table.isActive.equals(true));
+    }
+
+    query.orderBy([(table) => OrderingTerm.asc(table.name)]);
+    return query.watch();
   }
 
   Future<Product?> findById(String id) {
