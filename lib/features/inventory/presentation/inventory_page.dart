@@ -103,6 +103,7 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
                               .contains(_search),
                     )
                     .toList();
+
                 if (filtered.isEmpty) {
                   return Center(
                     child: Column(
@@ -119,6 +120,7 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
                     ),
                   );
                 }
+
                 return LayoutBuilder(
                   builder: (context, constraints) {
                     if (constraints.maxWidth >= 760) {
@@ -175,11 +177,13 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
                         ),
                       );
                     }
+
                     return ListView.separated(
                       itemCount: filtered.length,
                       separatorBuilder: (_, _) => const SizedBox(height: 8),
                       itemBuilder: (context, index) {
                         final item = filtered[index];
+
                         return Card(
                           child: ListTile(
                             leading: const CircleAvatar(
@@ -237,7 +241,11 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
     final eligible = products
         .where((product) => product.trackInventory)
         .toList();
-    if (!mounted) return;
+
+    if (!mounted) {
+      return;
+    }
+
     if (eligible.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -253,6 +261,7 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
     final quantityController = TextEditingController();
     final reasonController = TextEditingController();
     final referenceController = TextEditingController();
+
     var productId = eligible.first.id;
     var movementType = 'entry';
 
@@ -270,7 +279,7 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     DropdownButtonFormField<String>(
-                      value: productId,
+                      initialValue: productId,
                       decoration: const InputDecoration(
                         labelText: 'Producto *',
                       ),
@@ -286,13 +295,14 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
                           )
                           .toList(),
                       onChanged: (value) {
-                        if (value != null)
+                        if (value != null) {
                           setDialogState(() => productId = value);
+                        }
                       },
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
-                      value: movementType,
+                      initialValue: movementType,
                       decoration: const InputDecoration(
                         labelText: 'Tipo de movimiento *',
                       ),
@@ -320,8 +330,9 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
                         ),
                       ],
                       onChanged: (value) {
-                        if (value != null)
+                        if (value != null) {
                           setDialogState(() => movementType = value);
+                        }
                       },
                     ),
                     const SizedBox(height: 12),
@@ -370,8 +381,9 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
             ),
             FilledButton(
               onPressed: () {
-                if (formKey.currentState!.validate())
+                if (formKey.currentState!.validate()) {
                   Navigator.pop(dialogContext, true);
+                }
               },
               child: const Text('Guardar'),
             ),
@@ -383,6 +395,7 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
     if (saved == true && mounted) {
       try {
         final quantity = _parseQuantity(quantityController.text)!;
+
         await ref
             .read(inventoryRepositoryProvider)
             .registerMovement(
@@ -392,21 +405,25 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
               reason: reasonController.text,
               reference: referenceController.text,
             );
-        if (mounted)
+
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Movimiento registrado correctamente.'),
             ),
           );
+        }
       } catch (error) {
-        if (mounted)
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('No se pudo registrar el movimiento: $error'),
             ),
           );
+        }
       }
     }
+
     quantityController.dispose();
     reasonController.dispose();
     referenceController.dispose();
@@ -415,10 +432,20 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
   int? _parseQuantity(String value) {
     final normalized = value.trim().replaceAll(' ', '').replaceAll(',', '.');
     final parsed = double.tryParse(normalized);
-    if (parsed == null || !parsed.isFinite || parsed <= 0 || parsed > 999999999)
+
+    if (parsed == null ||
+        !parsed.isFinite ||
+        parsed <= 0 ||
+        parsed > 999999999) {
       return null;
+    }
+
     final milliUnits = parsed * 1000;
-    if ((milliUnits - milliUnits.round()).abs() > 0.000001) return null;
+
+    if ((milliUnits - milliUnits.round()).abs() > 0.000001) {
+      return null;
+    }
+
     return milliUnits.round();
   }
 
@@ -426,7 +453,11 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
     final history = await ref
         .read(inventoryRepositoryProvider)
         .getMovementHistory(product.id);
-    if (!mounted) return;
+
+    if (!mounted) {
+      return;
+    }
+
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -452,6 +483,7 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
                         separatorBuilder: (_, _) => const Divider(height: 1),
                         itemBuilder: (context, index) {
                           final movement = history[index];
+
                           return ListTile(
                             leading: Icon(_movementIcon(movement.movementType)),
                             title: Text(_movementLabel(movement.movementType)),
@@ -485,6 +517,7 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
 
   Future<void> _correctMovement(String movementId) async {
     final reasonController = TextEditingController();
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -510,13 +543,19 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
         ],
       ),
     );
+
     final reason = reasonController.text.trim();
     reasonController.dispose();
-    if (confirmed != true || !mounted) return;
+
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
     try {
       await ref
           .read(inventoryRepositoryProvider)
           .correctMovement(originalMovementId: movementId, reason: reason);
+
       if (mounted) {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
@@ -528,10 +567,11 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
         );
       }
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('No se pudo corregir el movimiento: $error')),
         );
+      }
     }
   }
 
@@ -570,6 +610,7 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
                           separatorBuilder: (_, _) => const Divider(height: 1),
                           itemBuilder: (context, index) {
                             final entry = entries[index];
+
                             return ListTile(
                               leading: Icon(
                                 _movementIcon(entry.movement.movementType),
