@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/providers/database_providers.dart';
 import '../../../../app/utils/error_messages.dart';
+import '../../../../app/utils/money_formatter.dart';
 import '../../../../core/database/app_database.dart';
 
 class ProductsPage extends ConsumerStatefulWidget {
@@ -143,6 +144,13 @@ class _ProductsPageState extends ConsumerState<ProductsPage> {
     );
   }
 
+  Future<void> _showPricesDialog(Product product) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => _ProductPricesDialog(product: product),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final repository = ref.watch(productRepositoryProvider);
@@ -193,6 +201,11 @@ class _ProductsPageState extends ConsumerState<ProductsPage> {
                           : Icons.inventory_2_outlined,
                     ),
                     IconButton(
+                      icon: const Icon(Icons.price_change),
+                      tooltip: 'Precios',
+                      onPressed: () => _showPricesDialog(product),
+                    ),
+                    IconButton(
                       icon: const Icon(Icons.edit),
                       tooltip: 'Editar producto',
                       onPressed: () => _showProductDialog(product: product),
@@ -204,6 +217,200 @@ class _ProductsPageState extends ConsumerState<ProductsPage> {
           );
         },
       ),
+    );
+  }
+}
+
+class _ProductPricesDialog extends ConsumerStatefulWidget {
+  const _ProductPricesDialog({required this.product});
+
+  final Product product;
+
+  @override
+  ConsumerState<_ProductPricesDialog> createState() =>
+      _ProductPricesDialogState();
+}
+
+class _ProductPricesDialogState extends ConsumerState<_ProductPricesDialog> {
+  final Set<String> _busyCodes = <String>{};
+  final Map<String, TextEditingController> _controllers =
+      <String, TextEditingController>{};
+
+  @override
+  void dispose() {
+    for (final controller in _controllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  TextEditingController _controllerFor(String code, ProductPrice? price) {
+    return _controllers.putIfAbsent(
+      code,
+      () =>
+          TextEditingController(text: price?.amountMinorUnits.toString() ?? ''),
+    );
+  }
+
+  Future<void> _save(
+    Currency currency,
+    TextEditingController controller,
+  ) async {
+    final text = controller.text.trim();
+    final amount = int.tryParse(text);
+    if (amount == null || amount < 0) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Importe inválido')));
+      return;
+    }
+
+    setState(() => _busyCodes.add(currency.code));
+    try {
+      await ref
+          .read(productRepositoryProvider)
+          .setPrice(
+            productId: widget.product.id,
+            currencyCode: currency.code,
+            amountMinorUnits: amount,
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Precio guardado')));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(readableErrorMessage(error))));
+    } finally {
+      if (mounted) {
+        setState(() => _busyCodes.remove(currency.code));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currencyRepository = ref.watch(currencyRepositoryProvider);
+    final productRepository = ref.watch(productRepositoryProvider);
+
+    return AlertDialog(
+      title: const Text('Precios'),
+      content: SizedBox(
+        width: 420,
+        child: StreamBuilder<List<Currency>>(
+          stream: currencyRepository.watchAll(),
+          builder: (context, currencySnapshot) {
+            if (currencySnapshot.connectionState == ConnectionState.waiting &&
+                !currencySnapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            if (currencySnapshot.hasError) {
+              return Center(
+                child: Text(readableErrorMessage(currencySnapshot.error!)),
+              );
+            }
+
+            final currencies = currencySnapshot.data ?? const <Currency>[];
+
+            if (currencies.isEmpty) {
+              return const Center(child: Text('No hay monedas'));
+            }
+
+            return StreamBuilder<List<ProductPrice>>(
+              stream: productRepository.watchPrices(widget.product.id),
+              builder: (context, priceSnapshot) {
+                if (priceSnapshot.connectionState == ConnectionState.waiting &&
+                    !priceSnapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (priceSnapshot.hasError) {
+                  return Center(
+                    child: Text(readableErrorMessage(priceSnapshot.error!)),
+                  );
+                }
+
+                final prices = priceSnapshot.data ?? const <ProductPrice>[];
+                final pricesByCode = <String, ProductPrice>{};
+                for (final price in prices) {
+                  pricesByCode[price.currencyCode] = price;
+                }
+
+                return ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: currencies.length,
+                  itemBuilder: (context, index) {
+                    final currency = currencies[index];
+                    final price = pricesByCode[currency.code];
+                    final controller = _controllerFor(currency.code, price);
+                    final busy = _busyCodes.contains(currency.code);
+
+                    return ListTile(
+                      title: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(currency.code),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              currency.name,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            price == null
+                                ? 'Sin precio'
+                                : formatMoney(
+                                    price.amountMinorUnits,
+                                    decimalDigits: currency.decimalDigits,
+                                    symbol: currency.symbol,
+                                  ),
+                          ),
+                          TextField(
+                            controller: controller,
+                            decoration: const InputDecoration(
+                              labelText: 'Precio',
+                            ),
+                            keyboardType: TextInputType.number,
+                            enabled: !busy,
+                          ),
+                        ],
+                      ),
+                      trailing: FilledButton(
+                        onPressed: busy
+                            ? null
+                            : () => _save(currency, controller),
+                        child: busy
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text('Guardar'),
+                      ),
+                    );
+                  },
+                );
+              },
+            );
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+      ],
     );
   }
 }

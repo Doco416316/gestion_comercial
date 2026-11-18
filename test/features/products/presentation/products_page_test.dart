@@ -8,15 +8,19 @@ import 'package:gestion_comercial/app/providers/database_providers.dart';
 import 'package:gestion_comercial/core/database/app_database.dart';
 import 'package:gestion_comercial/features/products/data/product_repository.dart';
 import 'package:gestion_comercial/features/products/presentation/pages/products_page.dart';
+import 'package:gestion_comercial/features/settings/data/currency_repository.dart';
 
 class FakeProductRepository implements ProductRepository {
   FakeProductRepository(
     this.stream, {
+    this.pricesStream,
     this.onCreateProduct,
     this.onUpdateProduct,
+    this.onSetPrice,
   });
 
   final Stream<List<Product>> stream;
+  final Stream<List<ProductPrice>>? pricesStream;
   final Future<String> Function({
     required String sku,
     required String name,
@@ -36,6 +40,12 @@ class FakeProductRepository implements ProductRepository {
     required bool trackInventory,
   })?
   onUpdateProduct;
+  final Future<void> Function({
+    required String productId,
+    required String currencyCode,
+    required int amountMinorUnits,
+  })?
+  onSetPrice;
 
   final List<
     ({
@@ -61,8 +71,47 @@ class FakeProductRepository implements ProductRepository {
   >
   updateCalls = [];
 
+  final List<({String productId, String currencyCode, int amountMinorUnits})>
+  setPriceCalls = [];
+
   @override
   Stream<List<Product>> watchActiveProducts() => stream;
+
+  @override
+  Stream<List<ProductPrice>> watchPrices(String productId) =>
+      pricesStream ?? Stream.value(const <ProductPrice>[]);
+
+  @override
+  Future<ProductPrice?> findPrice({
+    required String productId,
+    required String currencyCode,
+  }) async {
+    final prices = await watchPrices(productId).first;
+    for (final price in prices) {
+      if (price.currencyCode == currencyCode.trim().toUpperCase()) {
+        return price;
+      }
+    }
+    return null;
+  }
+
+  @override
+  Future<void> setPrice({
+    required String productId,
+    required String currencyCode,
+    required int amountMinorUnits,
+  }) async {
+    setPriceCalls.add((
+      productId: productId,
+      currencyCode: currencyCode,
+      amountMinorUnits: amountMinorUnits,
+    ));
+    await onSetPrice?.call(
+      productId: productId,
+      currencyCode: currencyCode,
+      amountMinorUnits: amountMinorUnits,
+    );
+  }
 
   @override
   Future<String> createProduct({
@@ -124,6 +173,31 @@ class FakeProductRepository implements ProductRepository {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
+class FakeCurrencyRepository implements CurrencyRepository {
+  FakeCurrencyRepository({required this.stream});
+
+  final Stream<List<Currency>> stream;
+
+  @override
+  Stream<List<Currency>> watchAll() => stream;
+
+  @override
+  Future<Currency?> findByCode(String code) async => null;
+
+  @override
+  Future<void> create({
+    required String code,
+    required String name,
+    required String symbol,
+  }) async {}
+
+  @override
+  Future<void> setActive(String code, bool active) async {}
+
+  @override
+  Future<void> setBaseCurrency(String code) async {}
 }
 
 Future<void> pumpPage(
@@ -512,5 +586,86 @@ void main() {
 
     expect(find.byType(AlertDialog), findsNothing);
     expect(find.text('Producto creado'), findsOneWidget);
+  });
+
+  testWidgets('abre diálogo de precios al pulsar el botón', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          productRepositoryProvider.overrideWithValue(
+            FakeProductRepository(Stream.value([sampleProduct])),
+          ),
+          currencyRepositoryProvider.overrideWithValue(
+            FakeCurrencyRepository(
+              stream: Stream.value([
+                Currency(
+                  code: 'USD',
+                  name: 'Dólar estadounidense',
+                  symbol: '\$',
+                  decimalDigits: 2,
+                  isActive: true,
+                  isBase: true,
+                  createdAt: DateTime(2026, 1, 1),
+                ),
+              ]),
+            ),
+          ),
+        ],
+        child: const MaterialApp(home: ProductsPage()),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.price_change));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.text('Precios'), findsOneWidget);
+    expect(find.text('USD'), findsOneWidget);
+  });
+
+  testWidgets('asigna un precio desde el diálogo', (tester) async {
+    final fakeProduct = FakeProductRepository(
+      Stream.value([sampleProduct]),
+      pricesStream: Stream.value(const <ProductPrice>[]),
+    );
+    final fakeCurrency = FakeCurrencyRepository(
+      stream: Stream.value([
+        Currency(
+          code: 'USD',
+          name: 'Dólar estadounidense',
+          symbol: '\$',
+          decimalDigits: 2,
+          isActive: true,
+          isBase: true,
+          createdAt: DateTime(2026, 1, 1),
+        ),
+      ]),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          productRepositoryProvider.overrideWithValue(fakeProduct),
+          currencyRepositoryProvider.overrideWithValue(fakeCurrency),
+        ],
+        child: const MaterialApp(home: ProductsPage()),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.price_change));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), '2500');
+    await tester.tap(find.widgetWithText(FilledButton, 'Guardar'));
+    await tester.pumpAndSettle();
+
+    expect(fakeProduct.setPriceCalls, hasLength(1));
+    final call = fakeProduct.setPriceCalls.single;
+    expect(call.productId, 'product-1');
+    expect(call.currencyCode, 'USD');
+    expect(call.amountMinorUnits, 2500);
+    expect(find.text('Precio guardado'), findsOneWidget);
   });
 }
