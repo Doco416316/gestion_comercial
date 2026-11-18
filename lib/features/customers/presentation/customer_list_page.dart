@@ -216,7 +216,6 @@ class _CustomerListPageState extends ConsumerState<CustomerListPage> {
           ),
         ),
         IconButton.filledTonal(
-          tooltip: 'Registrar nuevo cliente',
           onPressed: _createCustomer,
           icon: const Icon(Icons.person_add_alt_1_outlined),
         ),

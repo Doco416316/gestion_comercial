@@ -123,7 +123,7 @@ void main() {
     await pumpTestApp(tester);
 
     // Abrir formulario de registro.
-    final registerButton = find.byTooltip('Registrar nuevo cliente');
+    final registerButton = find.byIcon(Icons.person_add_alt_1_outlined);
 
     expect(registerButton, findsOneWidget);
 

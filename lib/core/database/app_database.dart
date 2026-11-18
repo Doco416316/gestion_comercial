@@ -856,6 +856,29 @@ class AppDatabase extends _$AppDatabase {
       );
     END
   ''');
+    await customStatement('''
+  CREATE TRIGGER prevent_inactive_base_currency_insert
+BEFORE INSERT ON currencies
+WHEN NEW.is_base = 1 AND NEW.is_active <> 1
+BEGIN
+  SELECT RAISE(
+    ABORT,
+    'La moneda base debe estar activa'
+  );
+END;
+''');
+
+    await customStatement('''
+CREATE TRIGGER prevent_base_currency_delete
+BEFORE DELETE ON currencies
+WHEN OLD.is_base = 1
+BEGIN
+  SELECT RAISE(
+    ABORT,
+    'No se puede eliminar la moneda base'
+  );
+END;
+''');
   }
 
   // ==========================================================

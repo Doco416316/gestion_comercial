@@ -268,6 +268,51 @@ void main() {
     },
   );
 
+  test(
+    'watchInventory incluye productos con saldo cero y actualiza existencias',
+    () async {
+      final expectation = expectLater(
+        repository.watchInventory(),
+        emitsInOrder([
+          isA<List<InventoryStock>>().having(
+            (items) => items.single.quantityMilliUnits,
+            'saldo inicial',
+            0,
+          ),
+          isA<List<InventoryStock>>().having(
+            (items) => items.single.quantityMilliUnits,
+            'saldo actualizado',
+            2500,
+          ),
+        ]),
+      );
+
+      await repository.registerMovement(
+        productId: productId,
+        movementType: 'entry',
+        quantityMilliUnits: 2500,
+        reason: 'Entrada de prueba',
+      );
+
+      await expectation;
+    },
+  );
+
+  test('watchRecentMovements devuelve el producto asociado', () async {
+    await repository.registerMovement(
+      productId: productId,
+      movementType: 'entry',
+      quantityMilliUnits: 5000,
+      reason: 'Compra inicial',
+    );
+
+    final movements = await repository.watchRecentMovements().first;
+
+    expect(movements, hasLength(1));
+    expect(movements.single.product.name, 'Producto de prueba');
+    expect(movements.single.movement.reason, 'Compra inicial');
+  });
+
   test('watchStock emite los cambios del inventario', () async {
     final expectation = expectLater(
       repository.watchStock(productId),
