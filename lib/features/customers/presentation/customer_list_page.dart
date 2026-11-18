@@ -216,9 +216,9 @@ class _CustomerListPageState extends ConsumerState<CustomerListPage> {
           ),
         ),
         IconButton.filledTonal(
-  onPressed: _createCustomer,
-  icon: const Icon(Icons.person_add_alt_1_outlined),
-),
+          onPressed: _createCustomer,
+          icon: const Icon(Icons.person_add_alt_1_outlined),
+        ),
       ],
     );
   }

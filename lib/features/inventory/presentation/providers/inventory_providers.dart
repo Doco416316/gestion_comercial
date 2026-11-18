@@ -13,5 +13,5 @@ final inventoryStreamProvider = StreamProvider<List<InventoryStock>>((ref) {
 
 final recentInventoryMovementsProvider =
     StreamProvider<List<InventoryMovementEntry>>((ref) {
-  return ref.watch(inventoryRepositoryProvider).watchRecentMovements();
-});
+      return ref.watch(inventoryRepositoryProvider).watchRecentMovements();
+    });

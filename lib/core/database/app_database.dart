@@ -856,7 +856,7 @@ class AppDatabase extends _$AppDatabase {
       );
     END
   ''');
-await customStatement('''
+    await customStatement('''
   CREATE TRIGGER prevent_inactive_base_currency_insert
 BEFORE INSERT ON currencies
 WHEN NEW.is_base = 1 AND NEW.is_active <> 1
@@ -868,7 +868,7 @@ BEGIN
 END;
 ''');
 
-await customStatement('''
+    await customStatement('''
 CREATE TRIGGER prevent_base_currency_delete
 BEFORE DELETE ON currencies
 WHEN OLD.is_base = 1
@@ -879,7 +879,6 @@ BEGIN
   );
 END;
 ''');
-
   }
 
   // ==========================================================

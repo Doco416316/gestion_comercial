@@ -8,8 +8,10 @@ final productRepositoryProvider = Provider<ProductRepository>((ref) {
   return ProductRepository(ref.watch(appDatabaseProvider));
 });
 
-final productsStreamProvider =
-    StreamProvider.family<List<Product>, bool>((ref, includeInactive) {
+final productsStreamProvider = StreamProvider.family<List<Product>, bool>((
+  ref,
+  includeInactive,
+) {
   return ref
       .watch(productRepositoryProvider)
       .watchAll(includeInactive: includeInactive);

@@ -1,4 +1,3 @@
-
 import 'dart:async';
 
 import 'package:drift/native.dart';
@@ -51,13 +50,8 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          appDatabaseProvider.overrideWithValue(database),
-        ],
-        child: MaterialApp.router(
-          theme: AppTheme.light,
-          routerConfig: router,
-        ),
+        overrides: [appDatabaseProvider.overrideWithValue(database)],
+        child: MaterialApp.router(theme: AppTheme.light, routerConfig: router),
       ),
     );
 
@@ -78,9 +72,7 @@ void main() {
       await database.close().timeout(
         const Duration(seconds: 10),
         onTimeout: () {
-          throw TimeoutException(
-            'No se pudo cerrar la base de datos.',
-          );
+          throw TimeoutException('No se pudo cerrar la base de datos.');
         },
       );
     });
@@ -91,163 +83,126 @@ void main() {
 
   // Localiza los campos de texto reales de la interfaz.
   // TextFormField contiene internamente un TextField.
-  
-Future<void> enterFieldText(
-  WidgetTester tester,
-  int index,
-  String value,
-) async {
-  // Buscar exclusivamente los campos del formulario abierto.
-  // Así se excluye el campo de búsqueda de la pantalla anterior.
-  final fields = find.descendant(
-    of: find.byType(Form),
-    matching: find.byType(EditableText),
-  );
 
-  expect(
-    fields,
-    findsWidgets,
-    reason: 'No se encontraron campos de texto en el formulario.',
-  );
+  Future<void> enterFieldText(
+    WidgetTester tester,
+    int index,
+    String value,
+  ) async {
+    // Buscar exclusivamente los campos del formulario abierto.
+    // Así se excluye el campo de búsqueda de la pantalla anterior.
+    final fields = find.descendant(
+      of: find.byType(Form),
+      matching: find.byType(EditableText),
+    );
 
-  expect(
-    fields.evaluate().length,
-    greaterThan(index),
-    reason: 'No existe el campo de texto número $index.',
-  );
+    expect(
+      fields,
+      findsWidgets,
+      reason: 'No se encontraron campos de texto en el formulario.',
+    );
 
-  final field = fields.at(index);
+    expect(
+      fields.evaluate().length,
+      greaterThan(index),
+      reason: 'No existe el campo de texto número $index.',
+    );
 
-  await tester.ensureVisible(field);
-  await tester.tap(field);
-  await tester.pump();
+    final field = fields.at(index);
 
-  await tester.enterText(field, value);
-  await tester.pump();
+    await tester.ensureVisible(field);
+    await tester.tap(field);
+    await tester.pump();
 
-  expect(
-    find.text(value),
-    findsWidgets,
-    reason: 'No se pudo introducir el texto: $value',
-  );
-}
+    await tester.enterText(field, value);
+    await tester.pump();
 
+    expect(
+      find.text(value),
+      findsWidgets,
+      reason: 'No se pudo introducir el texto: $value',
+    );
+  }
 
-  testWidgets(
-    'permite registrar un proveedor desde el directorio',
-    (tester) async {
-      try {
-        await pumpApp(tester);
+  testWidgets('permite registrar un proveedor desde el directorio', (
+    tester,
+  ) async {
+    try {
+      await pumpApp(tester);
 
-        expect(
-          find.text('Directorio de proveedores'),
-          findsOneWidget,
-        );
+      expect(find.text('Directorio de proveedores'), findsOneWidget);
 
-        final registerButton = find.byTooltip(
-          'Registrar nuevo proveedor',
-        );
+      final registerButton = find.byTooltip('Registrar nuevo proveedor');
 
-        expect(registerButton, findsOneWidget);
+      expect(registerButton, findsOneWidget);
 
-        await tester.tap(registerButton);
-        await tester.pumpAndSettle();
+      await tester.tap(registerButton);
+      await tester.pumpAndSettle();
 
-        expect(
-          find.text('Nuevo proveedor'),
-          findsOneWidget,
-        );
+      expect(find.text('Nuevo proveedor'), findsOneWidget);
 
-        // El primer campo corresponde al nombre del proveedor.
-        await enterFieldText(
-          tester,
-          0,
-          'Distribuidora Central',
-        );
+      // El primer campo corresponde al nombre del proveedor.
+      await enterFieldText(tester, 0, 'Distribuidora Central');
 
-        final saveButton = find.text('Guardar proveedor');
+      final saveButton = find.text('Guardar proveedor');
 
-        expect(saveButton, findsOneWidget);
+      expect(saveButton, findsOneWidget);
 
-        await tester.ensureVisible(saveButton);
-        await tester.tap(saveButton);
-        await tester.pumpAndSettle();
+      await tester.ensureVisible(saveButton);
+      await tester.tap(saveButton);
+      await tester.pumpAndSettle();
 
-        final suppliers = await database.select(database.suppliers).get();
+      final suppliers = await database.select(database.suppliers).get();
 
-        expect(suppliers, hasLength(1));
-        expect(
-          suppliers.single.name,
-          'Distribuidora Central',
-        );
-      } finally {
-        await disposeApp(tester);
-      }
-    },
-  );
+      expect(suppliers, hasLength(1));
+      expect(suppliers.single.name, 'Distribuidora Central');
+    } finally {
+      await disposeApp(tester);
+    }
+  });
 
-  testWidgets(
-    'permite registrar un producto desde el catálogo',
-    (tester) async {
-      try {
-        await pumpApp(tester);
+  testWidgets('permite registrar un producto desde el catálogo', (
+    tester,
+  ) async {
+    try {
+      await pumpApp(tester);
 
-        // Abrir el catálogo de productos.
-        router.go('/products');
-        await tester.pumpAndSettle();
+      // Abrir el catálogo de productos.
+      router.go('/products');
+      await tester.pumpAndSettle();
 
-        expect(
-          find.text('Catálogo de productos'),
-          findsOneWidget,
-        );
+      expect(find.text('Catálogo de productos'), findsOneWidget);
 
-        final registerButton = find.byTooltip(
-          'Registrar nuevo producto',
-        );
+      final registerButton = find.byTooltip('Registrar nuevo producto');
 
-        expect(registerButton, findsOneWidget);
+      expect(registerButton, findsOneWidget);
 
-        await tester.tap(registerButton);
-        await tester.pumpAndSettle();
+      await tester.tap(registerButton);
+      await tester.pumpAndSettle();
 
-        expect(
-          find.text('Nuevo producto'),
-          findsOneWidget,
-        );
+      expect(find.text('Nuevo producto'), findsOneWidget);
 
-        // SKU del producto.
-        await enterFieldText(
-          tester,
-          0,
-          'SKU-100',
-        );
+      // SKU del producto.
+      await enterFieldText(tester, 0, 'SKU-100');
 
-        // Nombre del producto.
-        await enterFieldText(
-          tester,
-          1,
-          'Producto de prueba',
-        );
+      // Nombre del producto.
+      await enterFieldText(tester, 1, 'Producto de prueba');
 
-        final saveButton = find.text('Guardar producto');
+      final saveButton = find.text('Guardar producto');
 
-        expect(saveButton, findsOneWidget);
+      expect(saveButton, findsOneWidget);
 
-        await tester.ensureVisible(saveButton);
-        await tester.tap(saveButton);
-        await tester.pumpAndSettle();
+      await tester.ensureVisible(saveButton);
+      await tester.tap(saveButton);
+      await tester.pumpAndSettle();
 
-        final products = await database.select(database.products).get();
+      final products = await database.select(database.products).get();
 
-        expect(products, hasLength(1));
-        expect(products.single.sku, 'SKU-100');
-        expect(
-          products.single.name,
-          'Producto de prueba',
-        );
-      } finally {
-        await disposeApp(tester);
-      }
-    },
-  );
+      expect(products, hasLength(1));
+      expect(products.single.sku, 'SKU-100');
+      expect(products.single.name, 'Producto de prueba');
+    } finally {
+      await disposeApp(tester);
+    }
+  });
 }

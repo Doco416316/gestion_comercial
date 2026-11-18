@@ -81,16 +81,26 @@ class _ProductFormPageState extends ConsumerState<ProductFormPage> {
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_editing ? 'Producto actualizado.' : 'Producto registrado.')),
+        SnackBar(
+          content: Text(
+            _editing ? 'Producto actualizado.' : 'Producto registrado.',
+          ),
+        ),
       );
       context.pop();
     } catch (error) {
       if (!mounted) return;
       final message = error is ArgumentError || error is StateError
-          ? error.toString().replaceFirst(RegExp(r'^(Invalid argument\(s\): |Bad state: )'), '')
+          ? error.toString().replaceFirst(
+              RegExp(r'^(Invalid argument\(s\): |Bad state: )'),
+              '',
+            )
           : 'No se pudo guardar el producto.';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), backgroundColor: Theme.of(context).colorScheme.error),
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
       );
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -109,48 +119,104 @@ class _ProductFormPageState extends ConsumerState<ProductFormPage> {
             child: ListView(
               padding: const EdgeInsets.all(24),
               children: [
-                Text(_editing ? 'Editar producto' : 'Nuevo producto', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+                Text(
+                  _editing ? 'Editar producto' : 'Nuevo producto',
+                  style: Theme.of(context).textTheme.headlineSmall
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 8),
-                const Text('Define la información básica del artículo y su control de existencias.'),
+                const Text(
+                  'Define la información básica del artículo y su control de existencias.',
+                ),
                 const SizedBox(height: 24),
                 TextFormField(
                   controller: _sku,
-                  decoration: const InputDecoration(labelText: 'Código SKU *', prefixIcon: Icon(Icons.qr_code_2_outlined)),
+                  decoration: const InputDecoration(
+                    labelText: 'Código SKU *',
+                    prefixIcon: Icon(Icons.qr_code_2_outlined),
+                  ),
                   textCapitalization: TextCapitalization.characters,
                   maxLength: 40,
-                  validator: (value) => value == null || value.trim().isEmpty ? 'El código SKU es obligatorio.' : null,
+                  validator: (value) => value == null || value.trim().isEmpty
+                      ? 'El código SKU es obligatorio.'
+                      : null,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _name,
-                  decoration: const InputDecoration(labelText: 'Nombre *', prefixIcon: Icon(Icons.inventory_2_outlined)),
+                  decoration: const InputDecoration(
+                    labelText: 'Nombre *',
+                    prefixIcon: Icon(Icons.inventory_2_outlined),
+                  ),
                   textCapitalization: TextCapitalization.words,
                   maxLength: 120,
-                  validator: (value) => value == null || value.trim().isEmpty ? 'El nombre es obligatorio.' : null,
+                  validator: (value) => value == null || value.trim().isEmpty
+                      ? 'El nombre es obligatorio.'
+                      : null,
                 ),
                 const SizedBox(height: 12),
-                TextFormField(controller: _category, decoration: const InputDecoration(labelText: 'Categoría', prefixIcon: Icon(Icons.category_outlined))),
+                TextFormField(
+                  controller: _category,
+                  decoration: const InputDecoration(
+                    labelText: 'Categoría',
+                    prefixIcon: Icon(Icons.category_outlined),
+                  ),
+                ),
                 const SizedBox(height: 12),
-                TextFormField(controller: _unit, decoration: const InputDecoration(labelText: 'Unidad de medida *', prefixIcon: Icon(Icons.straighten_outlined)), validator: (value) => value == null || value.trim().isEmpty ? 'La unidad de medida es obligatoria.' : null),
+                TextFormField(
+                  controller: _unit,
+                  decoration: const InputDecoration(
+                    labelText: 'Unidad de medida *',
+                    prefixIcon: Icon(Icons.straighten_outlined),
+                  ),
+                  validator: (value) => value == null || value.trim().isEmpty
+                      ? 'La unidad de medida es obligatoria.'
+                      : null,
+                ),
                 const SizedBox(height: 12),
-                TextFormField(controller: _description, decoration: const InputDecoration(labelText: 'Descripción', prefixIcon: Icon(Icons.notes_outlined)), maxLines: 3),
+                TextFormField(
+                  controller: _description,
+                  decoration: const InputDecoration(
+                    labelText: 'Descripción',
+                    prefixIcon: Icon(Icons.notes_outlined),
+                  ),
+                  maxLines: 3,
+                ),
                 const SizedBox(height: 8),
                 SwitchListTile.adaptive(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Controlar existencias'),
-                  subtitle: const Text('Desactívalo para servicios o artículos sin control de stock.'),
+                  subtitle: const Text(
+                    'Desactívalo para servicios o artículos sin control de stock.',
+                  ),
                   value: _trackInventory,
                   onChanged: (value) => setState(() => _trackInventory = value),
                 ),
                 const SizedBox(height: 24),
-                Wrap(alignment: WrapAlignment.end, spacing: 12, runSpacing: 8, children: [
-                  OutlinedButton(onPressed: _saving ? null : () => context.pop(), child: const Text('Cancelar')),
-                  FilledButton.icon(
-                    onPressed: _saving ? null : _save,
-                    icon: _saving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.save_outlined),
-                    label: Text(_editing ? 'Guardar cambios' : 'Guardar producto'),
-                  ),
-                ]),
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 12,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton(
+                      onPressed: _saving ? null : () => context.pop(),
+                      child: const Text('Cancelar'),
+                    ),
+                    FilledButton.icon(
+                      onPressed: _saving ? null : _save,
+                      icon: _saving
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.save_outlined),
+                      label: Text(
+                        _editing ? 'Guardar cambios' : 'Guardar producto',
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
