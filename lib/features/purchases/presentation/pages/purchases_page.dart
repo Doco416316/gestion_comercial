@@ -75,6 +75,13 @@ class _PurchasesPageState extends ConsumerState<PurchasesPage> {
                         onPressed: () =>
                             context.go('/compras/${purchase.id}/recepcion'),
                       ),
+                    if (purchase.status == 'confirmed')
+                      IconButton(
+                        icon: const Icon(Icons.payments),
+                        tooltip: 'Pagos',
+                        onPressed: () =>
+                            context.go('/compras/${purchase.id}/pago'),
+                      ),
                   ],
                 ),
               );
