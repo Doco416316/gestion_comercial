@@ -5,6 +5,8 @@ import '../layout/main_layout.dart';
 import '../../features/dashboard/presentation/pages/dashboard_page.dart';
 import '../../features/inventory/presentation/pages/inventory_page.dart';
 import '../../features/products/presentation/pages/products_page.dart';
+import '../../features/purchases/presentation/pages/purchase_form_page.dart';
+import '../../features/purchases/presentation/pages/purchase_receipt_page.dart';
 import '../../features/purchases/presentation/pages/purchases_page.dart';
 import '../../features/settings/presentation/pages/currencies_page.dart';
 import '../../features/suppliers/presentation/pages/suppliers_page.dart';
@@ -43,6 +45,20 @@ final appRouter = GoRouter(
         GoRoute(
           path: '/inventario',
           builder: (context, state) => const InventoryPage(),
+        ),
+        GoRoute(
+          path: '/compras/nueva',
+          builder: (context, state) => const PurchaseFormPage(),
+        ),
+        GoRoute(
+          path: '/compras/:id',
+          builder: (context, state) =>
+              PurchaseFormPage(purchaseId: state.pathParameters['id']),
+        ),
+        GoRoute(
+          path: '/compras/:id/recepcion',
+          builder: (context, state) =>
+              PurchaseReceiptPage(purchaseId: state.pathParameters['id']),
         ),
         GoRoute(
           path: '/compras',
