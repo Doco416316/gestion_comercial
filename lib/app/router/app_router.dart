@@ -3,7 +3,9 @@ import 'package:go_router/go_router.dart';
 
 import '../layout/main_layout.dart';
 import '../../features/dashboard/presentation/pages/dashboard_page.dart';
+import '../../features/inventory/presentation/pages/inventory_page.dart';
 import '../../features/products/presentation/pages/products_page.dart';
+import '../../features/purchases/presentation/pages/purchases_page.dart';
 import '../../features/settings/presentation/pages/currencies_page.dart';
 import '../../features/suppliers/presentation/pages/suppliers_page.dart';
 
@@ -40,12 +42,11 @@ final appRouter = GoRouter(
         ),
         GoRoute(
           path: '/inventario',
-          builder: (context, state) =>
-              const PlaceholderPage(title: 'Inventario'),
+          builder: (context, state) => const InventoryPage(),
         ),
         GoRoute(
           path: '/compras',
-          builder: (context, state) => const PlaceholderPage(title: 'Compras'),
+          builder: (context, state) => const PurchasesPage(),
         ),
         GoRoute(
           path: '/proveedores',
