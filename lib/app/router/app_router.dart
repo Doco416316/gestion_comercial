@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../layout/main_layout.dart';
@@ -11,21 +10,6 @@ import '../../features/purchases/presentation/pages/purchases_page.dart';
 import '../../features/purchases/presentation/pages/supplier_payment_page.dart';
 import '../../features/settings/presentation/pages/currencies_page.dart';
 import '../../features/suppliers/presentation/pages/suppliers_page.dart';
-
-class PlaceholderPage extends StatelessWidget {
-  final String title;
-  const PlaceholderPage({super.key, required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        '$title - En construcción',
-        style: const TextStyle(fontSize: 24),
-      ),
-    );
-  }
-}
 
 final appRouter = GoRouter(
   initialLocation: '/dashboard',
