@@ -209,6 +209,25 @@ class InventoryRepository {
     required String originalMovementId,
     required String reason,
     String? reference,
+  }) {
+    return _database.transaction(
+      () => correctMovementInTransaction(
+        originalMovementId: originalMovementId,
+        reason: reason,
+        reference: reference,
+      ),
+    );
+  }
+
+  /// Compensa un movimiento dentro de una transacción ya abierta.
+  ///
+  /// Este método no inicia ni confirma una transacción propia.
+  /// Permite que operaciones como la cancelación de una venta
+  /// agrupen la compensación y el cambio de estado atómicamente.
+  Future<String> correctMovementInTransaction({
+    required String originalMovementId,
+    required String reason,
+    String? reference,
   }) async {
     final normalizedReason = reason.trim();
     final normalizedReference = reference?.trim();
@@ -217,67 +236,64 @@ class InventoryRepository {
       throw ArgumentError('El motivo de la corrección es obligatorio.');
     }
 
+    final original = await (_database.select(
+      _database.inventoryMovements,
+    )..where((table) => table.id.equals(originalMovementId))).getSingleOrNull();
+
+    if (original == null) {
+      throw StateError('El movimiento original no existe.');
+    }
+
+    if (original.correctionOfId != null) {
+      throw StateError('No se permite corregir un movimiento compensatorio.');
+    }
+
+    final existingCorrection =
+        await (_database.select(_database.inventoryMovements)..where(
+              (table) => table.correctionOfId.equals(originalMovementId),
+            ))
+            .getSingleOrNull();
+
+    if (existingCorrection != null) {
+      throw StateError('Este movimiento ya tiene una corrección registrada.');
+    }
+
+    final inverseType = _inverseTypes[original.movementType];
+
+    if (inverseType == null) {
+      throw StateError('No se puede corregir este tipo de movimiento.');
+    }
+
+    if (!_increasesStock(inverseType)) {
+      final currentStock = await getStock(original.productId);
+
+      if (currentStock < original.quantityMilliUnits) {
+        throw StateError(
+          'No se puede corregir: las existencias actuales '
+          'son insuficientes para compensar el movimiento.',
+        );
+      }
+    }
+
     final correctionId = _uuid.v4();
 
-    await _database.transaction(() async {
-      final original =
-          await (_database.select(_database.inventoryMovements)
-                ..where((table) => table.id.equals(originalMovementId)))
-              .getSingleOrNull();
-
-      if (original == null) {
-        throw StateError('El movimiento original no existe.');
-      }
-
-      if (original.correctionOfId != null) {
-        throw StateError('No se permite corregir un movimiento compensatorio.');
-      }
-
-      final existingCorrection =
-          await (_database.select(_database.inventoryMovements)..where(
-                (table) => table.correctionOfId.equals(originalMovementId),
-              ))
-              .getSingleOrNull();
-
-      if (existingCorrection != null) {
-        throw StateError('Este movimiento ya tiene una corrección registrada.');
-      }
-
-      final inverseType = _inverseTypes[original.movementType];
-
-      if (inverseType == null) {
-        throw StateError('No se puede corregir este tipo de movimiento.');
-      }
-
-      if (!_increasesStock(inverseType)) {
-        final currentStock = await getStock(original.productId);
-
-        if (currentStock < original.quantityMilliUnits) {
-          throw StateError(
-            'No se puede corregir: las existencias actuales '
-            'son insuficientes para compensar el movimiento.',
-          );
-        }
-      }
-
-      await _database
-          .into(_database.inventoryMovements)
-          .insert(
-            InventoryMovementsCompanion.insert(
-              id: correctionId,
-              productId: original.productId,
-              movementType: inverseType,
-              quantityMilliUnits: original.quantityMilliUnits,
-              reason: normalizedReason,
-              reference: Value(
-                normalizedReference == null || normalizedReference.isEmpty
-                    ? null
-                    : normalizedReference,
-              ),
-              correctionOfId: Value(originalMovementId),
+    await _database
+        .into(_database.inventoryMovements)
+        .insert(
+          InventoryMovementsCompanion.insert(
+            id: correctionId,
+            productId: original.productId,
+            movementType: inverseType,
+            quantityMilliUnits: original.quantityMilliUnits,
+            reason: normalizedReason,
+            reference: Value(
+              normalizedReference == null || normalizedReference.isEmpty
+                  ? null
+                  : normalizedReference,
             ),
-          );
-    });
+            correctionOfId: Value(originalMovementId),
+          ),
+        );
 
     return correctionId;
   }

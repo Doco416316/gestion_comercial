@@ -9,6 +9,10 @@ import '../features/products/presentation/product_form_page.dart';
 import '../features/products/presentation/product_list_page.dart';
 import '../features/suppliers/presentation/supplier_form_page.dart';
 import '../features/suppliers/presentation/supplier_list_page.dart';
+import '../features/sales/presentation/sales_page.dart';
+import '../features/sales/presentation/sale_form_page.dart';
+import '../features/sales/presentation/sale_detail_page.dart';
+import '../features/settings/presentation/settings_page.dart';
 import 'navigation/app_shell.dart';
 import 'navigation/placeholder_page.dart';
 import 'theme/app_theme.dart';
@@ -101,6 +105,25 @@ final GoRouter _router = GoRouter(
           path: '/inventory',
           builder: (context, state) => const InventoryPage(),
         ),
+        GoRoute(path: '/sales', builder: (context, state) => const SalesPage()),
+        GoRoute(
+          path: '/sales/new',
+          builder: (context, state) => const SaleFormPage(),
+        ),
+        GoRoute(
+          path: '/sales/detail',
+          builder: (context, state) {
+            final saleId = state.extra;
+            if (saleId is! String || saleId.isEmpty) {
+              return const PlaceholderPage(
+                title: 'Venta no disponible',
+                description: 'No se recibió el identificador de la venta.',
+                icon: Icons.error_outline,
+              );
+            }
+            return SaleDetailPage(saleId: saleId);
+          },
+        ),
         GoRoute(
           path: '/purchases',
           builder: (context, state) => const PlaceholderPage(
@@ -111,11 +134,7 @@ final GoRouter _router = GoRouter(
         ),
         GoRoute(
           path: '/settings',
-          builder: (context, state) => const PlaceholderPage(
-            title: 'Configuración',
-            description: 'Preferencias y parámetros del sistema.',
-            icon: Icons.settings_outlined,
-          ),
+          builder: (context, state) => const SettingsPage(),
         ),
       ],
     ),

@@ -27,6 +27,7 @@ class CurrencyRepository {
     required String code,
     required String name,
     required String symbol,
+    int decimalDigits = 2,
   }) async {
     final normalizedCode = _normalizeCode(code);
     final normalizedName = name.trim();
@@ -38,6 +39,10 @@ class CurrencyRepository {
 
     if (normalizedName.isEmpty || normalizedSymbol.isEmpty) {
       throw ArgumentError('El nombre y el símbolo son obligatorios.');
+    }
+
+    if (decimalDigits < 0 || decimalDigits > 4) {
+      throw ArgumentError('La precisión decimal debe estar entre 0 y 4.');
     }
 
     if (normalizedName.length > 60 || normalizedSymbol.length > 8) {
@@ -54,8 +59,103 @@ class CurrencyRepository {
             code: normalizedCode,
             name: normalizedName,
             symbol: normalizedSymbol,
+            decimalDigits: Value(decimalDigits),
           ),
         );
+  }
+
+  Future<void> updateDetails({
+    required String code,
+    required String name,
+    required String symbol,
+    required int decimalDigits,
+  }) async {
+    final normalizedCode = _normalizeCode(code);
+    final normalizedName = name.trim();
+    final normalizedSymbol = symbol.trim();
+
+    if (normalizedName.isEmpty || normalizedSymbol.isEmpty) {
+      throw ArgumentError('El nombre y el símbolo son obligatorios.');
+    }
+
+    if (normalizedName.length > 60 || normalizedSymbol.length > 8) {
+      throw ArgumentError('El nombre admite 60 caracteres y el símbolo 8.');
+    }
+
+    if (decimalDigits < 0 || decimalDigits > 4) {
+      throw ArgumentError('La precisión decimal debe estar entre 0 y 4.');
+    }
+
+    await _database.transaction(() async {
+      final currency = await findByCode(normalizedCode);
+
+      if (currency == null) {
+        throw StateError('La moneda indicada no existe.');
+      }
+
+      if (decimalDigits != currency.decimalDigits) {
+        final hasHistory = await _hasFinancialHistory(normalizedCode);
+
+        if (hasHistory) {
+          throw StateError(
+            'No se puede modificar la precisión decimal de esta moneda '
+            'porque ya tiene operaciones o precios registrados.',
+          );
+        }
+      }
+
+      await (_database.update(
+        _database.currencies,
+      )..where((table) => table.code.equals(normalizedCode))).write(
+        CurrenciesCompanion(
+          name: Value(normalizedName),
+          symbol: Value(normalizedSymbol),
+          decimalDigits: Value(decimalDigits),
+        ),
+      );
+    });
+  }
+
+  Future<bool> _hasFinancialHistory(String currencyCode) async {
+    final productPrice =
+        await (_database.select(_database.productPrices)
+              ..where((table) => table.currencyCode.equals(currencyCode))
+              ..limit(1))
+            .getSingleOrNull();
+
+    if (productPrice != null) return true;
+
+    final purchase =
+        await (_database.select(_database.purchases)
+              ..where((table) => table.currencyCode.equals(currencyCode))
+              ..limit(1))
+            .getSingleOrNull();
+
+    if (purchase != null) return true;
+
+    final supplierPayment =
+        await (_database.select(_database.supplierPayments)
+              ..where((table) => table.currencyCode.equals(currencyCode))
+              ..limit(1))
+            .getSingleOrNull();
+
+    if (supplierPayment != null) return true;
+
+    final sale =
+        await (_database.select(_database.sales)
+              ..where((table) => table.currencyCode.equals(currencyCode))
+              ..limit(1))
+            .getSingleOrNull();
+
+    if (sale != null) return true;
+
+    final salePayment =
+        await (_database.select(_database.salePayments)
+              ..where((table) => table.currencyCode.equals(currencyCode))
+              ..limit(1))
+            .getSingleOrNull();
+
+    return salePayment != null;
   }
 
   Future<void> setActive(String code, bool active) async {
@@ -108,9 +208,19 @@ class CurrencyRepository {
         _database.supplierPayments,
       )..limit(1)).getSingleOrNull();
 
+      final hasSales = await (_database.select(
+        _database.sales,
+      )..limit(1)).getSingleOrNull();
+
+      final hasSalePayments = await (_database.select(
+        _database.salePayments,
+      )..limit(1)).getSingleOrNull();
+
       if (hasExchangeRates != null ||
           hasPurchases != null ||
-          hasSupplierPayments != null) {
+          hasSupplierPayments != null ||
+          hasSales != null ||
+          hasSalePayments != null) {
         throw StateError(
           'No se puede cambiar la moneda base porque ya existe '
           'historial financiero.',

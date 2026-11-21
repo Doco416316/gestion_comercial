@@ -405,6 +405,147 @@ class SupplierPayments extends Table {
 }
 
 // ============================================================
+// VENTAS
+// ============================================================
+
+class Sales extends Table {
+  TextColumn get id => text()();
+
+  TextColumn get customerId => text().nullable().references(
+    Customers,
+    #id,
+    onDelete: KeyAction.restrict,
+  )();
+
+  TextColumn get documentNumber => text().nullable()();
+
+  DateTimeColumn get saleDate => dateTime()();
+
+  TextColumn get currencyCode => text().references(Currencies, #code)();
+
+  /// Tasa histórica de la moneda de la venta respecto a la moneda base.
+  TextColumn get exchangeRateToBaseSnapshot => text()();
+
+  IntColumn get subtotalMinorUnits => integer()();
+
+  IntColumn get discountMinorUnits =>
+      integer().withDefault(const Constant(0))();
+
+  IntColumn get taxMinorUnits => integer().withDefault(const Constant(0))();
+
+  IntColumn get totalMinorUnits => integer()();
+
+  /// Valores permitidos: cash, credit.
+  TextColumn get paymentType => text().withLength(min: 1, max: 20)();
+
+  /// Estados permitidos: draft, confirmed, cancelled.
+  TextColumn get status => text().withDefault(const Constant('draft'))();
+
+  DateTimeColumn get confirmedAt => dateTime().nullable()();
+
+  DateTimeColumn get cancelledAt => dateTime().nullable()();
+
+  TextColumn get cancellationReason => text().nullable()();
+
+  TextColumn get notes => text().nullable()();
+
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+// ============================================================
+// DETALLES DE VENTAS
+// ============================================================
+
+class SaleDetails extends Table {
+  TextColumn get id => text()();
+
+  TextColumn get saleId =>
+      text().references(Sales, #id, onDelete: KeyAction.restrict)();
+
+  TextColumn get productId =>
+      text().references(Products, #id, onDelete: KeyAction.restrict)();
+
+  /// Datos históricos del producto al momento de venderlo.
+  TextColumn get skuSnapshot => text()();
+
+  TextColumn get productNameSnapshot => text()();
+
+  TextColumn get unitSnapshot => text()();
+
+  IntColumn get quantityMilliUnits => integer()();
+
+  IntColumn get unitPriceMinorUnits => integer()();
+
+  IntColumn get discountMinorUnits =>
+      integer().withDefault(const Constant(0))();
+
+  /// Valores permitidos: fixed, percentage.
+  TextColumn get discountType => text().withDefault(const Constant('fixed'))();
+
+  /// Porcentaje original del descuento; nulo si fue fijo.
+  TextColumn get discountRate => text().nullable()();
+
+  IntColumn get taxMinorUnits => integer().withDefault(const Constant(0))();
+
+  /// Valores permitidos: fixed, percentage.
+  TextColumn get taxType => text().withDefault(const Constant('fixed'))();
+
+  /// Porcentaje original del impuesto; nulo si fue fijo.
+  TextColumn get taxRate => text().nullable()();
+
+  IntColumn get totalMinorUnits => integer()();
+
+  /// Movimiento de salida generado al confirmar la venta.
+  /// Nulo si el producto no controla inventario.
+  TextColumn get inventoryMovementId => text().nullable().references(
+    InventoryMovements,
+    #id,
+    onDelete: KeyAction.restrict,
+  )();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+// ============================================================
+// PAGOS DE VENTAS
+// ============================================================
+
+class SalePayments extends Table {
+  TextColumn get id => text()();
+
+  TextColumn get saleId =>
+      text().references(Sales, #id, onDelete: KeyAction.restrict)();
+
+  /// Importe realmente recibido, en la moneda del pago.
+  IntColumn get amountMinorUnits => integer()();
+
+  TextColumn get currencyCode => text().references(Currencies, #code)();
+
+  /// Tasa histórica de la moneda del pago respecto a la moneda base.
+  TextColumn get exchangeRateToBaseSnapshot => text()();
+
+  /// Equivalente aplicado a la deuda, en moneda de la venta.
+  IntColumn get appliedAmountMinorUnits => integer()();
+
+  DateTimeColumn get paymentDate => dateTime()();
+
+  TextColumn get paymentMethod => text().withLength(min: 1, max: 40)();
+
+  TextColumn get reference => text().nullable()();
+
+  TextColumn get notes => text().nullable()();
+
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+// ============================================================
 // BASE DE DATOS
 // ============================================================
 
@@ -423,6 +564,9 @@ class SupplierPayments extends Table {
     PurchaseReceiptDetails,
     SupplierPayments,
     Customers,
+    Sales,
+    SaleDetails,
+    SalePayments,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -450,7 +594,7 @@ class AppDatabase extends _$AppDatabase {
   static final BigInt _maxSqliteInteger = BigInt.parse('9223372036854775807');
 
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 17;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -469,6 +613,11 @@ class AppDatabase extends _$AppDatabase {
       await _createFinancialHistoryProtection();
       await _createPurchaseLifecycleProtection();
       await _createCustomerIndexesAndProtection();
+      await _createSalesIndexes();
+      await _createSalesLifecycleProtection();
+      await _createFinancialHistoryProtection();
+      await _createBaseCurrencyHistoryProtection();
+      await _createSalesCancellationProtection();
     },
     onUpgrade: (m, from, to) async {
       if (from < 2) {
@@ -569,11 +718,346 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(customers);
         await _createCustomerIndexesAndProtection();
       }
+
+      // Versión 13: estructura inicial del módulo de ventas.
+      if (from < 13 && to >= 13) {
+        await m.createTable(sales);
+        await m.createTable(saleDetails);
+        await m.createTable(salePayments);
+        await _createSalesIndexes();
+      }
+
+      // Versión 14: protecciones de ciclo de vida e inmutabilidad de ventas.
+      if (from < 14 && to >= 14) {
+        await _createSalesIndexes();
+        await _createSalesLifecycleProtection();
+      }
+      // Versión 15: validación de importes y saldo pendiente
+      // directamente en la base de datos para los pagos de ventas.
+      if (from < 15 && to >= 15) {
+        await _createSalesLifecycleProtection();
+      }
+      // Versión 16: proteger la moneda base también frente
+      // al historial de ventas y pagos recibidos.
+      if (from < 16 && to >= 16) {
+        await _createBaseCurrencyHistoryProtection();
+      }
+      // Versión 17: permitir exclusivamente la cancelación
+      // controlada de ventas confirmadas.
+      if (from < 17 && to >= 17) {
+        await _createSalesCancellationProtection();
+      }
     },
   );
 
   static QueryExecutor _openConnection() {
     return driftDatabase(name: 'gestion_comercial');
+  }
+
+  // ==========================================================
+  // ÍNDICES DE VENTAS
+  // ==========================================================
+
+  Future<void> _createSalesIndexes() async {
+    await customStatement('''
+      CREATE UNIQUE INDEX IF NOT EXISTS
+      unique_sale_document_number
+      ON sales (document_number)
+      WHERE document_number IS NOT NULL
+        AND length(trim(document_number)) > 0
+    ''');
+
+    await customStatement('''
+      CREATE UNIQUE INDEX IF NOT EXISTS
+      unique_sale_detail_inventory_movement
+      ON sale_details (inventory_movement_id)
+      WHERE inventory_movement_id IS NOT NULL
+    ''');
+
+    await customStatement('''
+      CREATE INDEX IF NOT EXISTS
+      idx_sales_customer_date
+      ON sales (customer_id, sale_date)
+    ''');
+
+    await customStatement('''
+      CREATE INDEX IF NOT EXISTS
+      idx_sales_date
+      ON sales (sale_date)
+    ''');
+
+    await customStatement('''
+      CREATE INDEX IF NOT EXISTS
+      idx_sale_details_sale
+      ON sale_details (sale_id)
+    ''');
+
+    await customStatement('''
+      CREATE INDEX IF NOT EXISTS
+      idx_sale_details_product
+      ON sale_details (product_id)
+    ''');
+
+    await customStatement('''
+      CREATE INDEX IF NOT EXISTS
+      idx_sale_payments_sale_date
+      ON sale_payments (sale_id, payment_date)
+    ''');
+  }
+
+  // ==========================================================
+  // PROTECCIÓN DEL CICLO DE VIDA DE VENTAS
+  // ==========================================================
+
+  Future<void> _createSalesLifecycleProtection() async {
+    // Una vez confirmada, la cabecera de la venta es histórica.
+    await customStatement('''
+      CREATE TRIGGER IF NOT EXISTS prevent_confirmed_sale_update
+      BEFORE UPDATE ON sales
+      WHEN OLD.status <> 'draft'
+      BEGIN
+        SELECT RAISE(
+          ABORT,
+          'Solo se pueden modificar ventas en borrador'
+        );
+      END
+    ''');
+
+    await customStatement('''
+      CREATE TRIGGER IF NOT EXISTS prevent_confirmed_sale_delete
+      BEFORE DELETE ON sales
+      WHEN OLD.status <> 'draft'
+      BEGIN
+        SELECT RAISE(
+          ABORT,
+          'Solo se pueden eliminar ventas en borrador'
+        );
+      END
+    ''');
+
+    await customStatement('''
+      CREATE TRIGGER IF NOT EXISTS validate_sale_confirmation
+      BEFORE UPDATE OF status ON sales
+      WHEN OLD.status = 'draft' AND NEW.status = 'confirmed'
+      BEGIN
+        SELECT RAISE(
+          ABORT,
+          'La fecha de confirmación es obligatoria'
+        )
+        WHERE NEW.confirmed_at IS NULL;
+
+        SELECT RAISE(
+          ABORT,
+          'No se puede confirmar una venta sin detalles'
+        )
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM sale_details
+          WHERE sale_id = NEW.id
+        );
+      END
+    ''');
+
+    await customStatement('''
+      CREATE TRIGGER IF NOT EXISTS validate_sale_detail_insert
+      BEFORE INSERT ON sale_details
+      WHEN NOT EXISTS (
+        SELECT 1
+        FROM sales
+        WHERE id = NEW.sale_id
+          AND status = 'draft'
+      )
+      BEGIN
+        SELECT RAISE(
+          ABORT,
+          'Solo se pueden agregar detalles a ventas en borrador'
+        );
+      END
+    ''');
+
+    await customStatement('''
+      CREATE TRIGGER IF NOT EXISTS validate_sale_detail_update
+      BEFORE UPDATE ON sale_details
+      WHEN NOT EXISTS (
+        SELECT 1
+        FROM sales
+        WHERE id = OLD.sale_id
+          AND status = 'draft'
+      )
+      OR NOT EXISTS (
+        SELECT 1
+        FROM sales
+        WHERE id = NEW.sale_id
+          AND status = 'draft'
+      )
+      BEGIN
+        SELECT RAISE(
+          ABORT,
+          'Solo se pueden modificar detalles de ventas en borrador'
+        );
+      END
+    ''');
+
+    await customStatement('''
+      CREATE TRIGGER IF NOT EXISTS validate_sale_detail_delete
+      BEFORE DELETE ON sale_details
+      WHEN NOT EXISTS (
+        SELECT 1
+        FROM sales
+        WHERE id = OLD.sale_id
+          AND status = 'draft'
+      )
+      BEGIN
+        SELECT RAISE(
+          ABORT,
+          'Solo se pueden eliminar detalles de ventas en borrador'
+        );
+      END
+    ''');
+
+    // Recrear el trigger para actualizar también las validaciones
+    // de importes positivos y saldo pendiente.
+    await customStatement('''
+      DROP TRIGGER IF EXISTS validate_sale_payment_insert
+    ''');
+
+    await customStatement('''
+      CREATE TRIGGER validate_sale_payment_insert
+      BEFORE INSERT ON sale_payments
+      BEGIN
+        SELECT RAISE(
+          ABORT,
+          'Solo se pueden registrar pagos en ventas confirmadas'
+        )
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM sales
+          WHERE id = NEW.sale_id
+            AND status = 'confirmed'
+        );
+
+        SELECT RAISE(
+          ABORT,
+          'El importe del pago debe ser mayor que cero'
+        )
+        WHERE NEW.amount_minor_units <= 0;
+
+        SELECT RAISE(
+          ABORT,
+          'El importe aplicado debe ser mayor que cero'
+        )
+        WHERE NEW.applied_amount_minor_units <= 0;
+
+        SELECT RAISE(
+          ABORT,
+          'El pago supera el saldo pendiente de la venta'
+        )
+        WHERE NEW.applied_amount_minor_units > (
+          SELECT
+            s.total_minor_units - COALESCE(
+              (
+                SELECT SUM(sp.applied_amount_minor_units)
+                FROM sale_payments sp
+                WHERE sp.sale_id = s.id
+              ),
+              0
+            )
+          FROM sales s
+          WHERE s.id = NEW.sale_id
+        );
+      END
+    ''');
+
+    await customStatement('''
+      CREATE TRIGGER IF NOT EXISTS prevent_sale_payment_update
+      BEFORE UPDATE ON sale_payments
+      BEGIN
+        SELECT RAISE(
+          ABORT,
+          'Los pagos registrados son inmutables'
+        );
+      END
+    ''');
+
+    await customStatement('''
+      CREATE TRIGGER IF NOT EXISTS prevent_sale_payment_delete
+      BEFORE DELETE ON sale_payments
+      BEGIN
+        SELECT RAISE(
+          ABORT,
+          'Los pagos registrados son inmutables'
+        );
+      END
+    ''');
+  }
+
+  Future<void> _createSalesCancellationProtection() async {
+    // Reemplazar la protección anterior para permitir únicamente
+    // confirmed -> cancelled sin modificar los datos históricos.
+    await customStatement('''
+      DROP TRIGGER IF EXISTS prevent_confirmed_sale_update
+    ''');
+
+    await customStatement('''
+      CREATE TRIGGER prevent_confirmed_sale_update
+      BEFORE UPDATE ON sales
+      WHEN OLD.status <> 'draft'
+        AND NOT (
+          OLD.status = 'confirmed'
+          AND NEW.status = 'cancelled'
+          AND OLD.id IS NEW.id
+          AND OLD.customer_id IS NEW.customer_id
+          AND OLD.document_number IS NEW.document_number
+          AND OLD.sale_date IS NEW.sale_date
+          AND OLD.currency_code IS NEW.currency_code
+          AND OLD.exchange_rate_to_base_snapshot
+              IS NEW.exchange_rate_to_base_snapshot
+          AND OLD.subtotal_minor_units IS NEW.subtotal_minor_units
+          AND OLD.discount_minor_units IS NEW.discount_minor_units
+          AND OLD.tax_minor_units IS NEW.tax_minor_units
+          AND OLD.total_minor_units IS NEW.total_minor_units
+          AND OLD.payment_type IS NEW.payment_type
+          AND OLD.confirmed_at IS NEW.confirmed_at
+          AND OLD.notes IS NEW.notes
+          AND OLD.created_at IS NEW.created_at
+        )
+      BEGIN
+        SELECT RAISE(
+          ABORT,
+          'Solo se permite cancelar una venta confirmada sin alterar su historial'
+        );
+      END
+    ''');
+
+    await customStatement('''
+      DROP TRIGGER IF EXISTS validate_sale_cancellation
+    ''');
+
+    await customStatement('''
+      CREATE TRIGGER validate_sale_cancellation
+      BEFORE UPDATE OF status ON sales
+      WHEN NEW.status = 'cancelled'
+      BEGIN
+        SELECT RAISE(
+          ABORT,
+          'Solo se pueden cancelar ventas confirmadas'
+        )
+        WHERE OLD.status <> 'confirmed';
+
+        SELECT RAISE(
+          ABORT,
+          'La fecha de cancelación es obligatoria'
+        )
+        WHERE NEW.cancelled_at IS NULL;
+
+        SELECT RAISE(
+          ABORT,
+          'El motivo de cancelación debe tener entre 1 y 250 caracteres'
+        )
+        WHERE NEW.cancellation_reason IS NULL
+          OR length(trim(NEW.cancellation_reason)) NOT BETWEEN 1 AND 250;
+      END
+    ''');
   }
 
   // ==========================================================
@@ -857,7 +1341,7 @@ class AppDatabase extends _$AppDatabase {
     END
   ''');
     await customStatement('''
-  CREATE TRIGGER prevent_inactive_base_currency_insert
+  CREATE TRIGGER IF NOT EXISTS prevent_inactive_base_currency_insert
 BEFORE INSERT ON currencies
 WHEN NEW.is_base = 1 AND NEW.is_active <> 1
 BEGIN
@@ -869,7 +1353,7 @@ END;
 ''');
 
     await customStatement('''
-CREATE TRIGGER prevent_base_currency_delete
+CREATE TRIGGER IF NOT EXISTS prevent_base_currency_delete
 BEFORE DELETE ON currencies
 WHEN OLD.is_base = 1
 BEGIN
@@ -879,6 +1363,57 @@ BEGIN
   );
 END;
 ''');
+  }
+
+  Future<void> _createBaseCurrencyHistoryProtection() async {
+    // Esta protección requiere el esquema completo de ventas.
+    final rows = await customSelect('''
+    SELECT name
+    FROM sqlite_master
+    WHERE type = 'table'
+      AND name IN ('currencies', 'exchange_rates', 'purchases',
+                   'supplier_payments', 'sales', 'sale_payments')
+  ''').get();
+
+    final existingTables = rows.map((row) => row.read<String>('name')).toSet();
+
+    const requiredTables = {
+      'currencies',
+      'exchange_rates',
+      'purchases',
+      'supplier_payments',
+      'sales',
+      'sale_payments',
+    };
+
+    if (!existingTables.containsAll(requiredTables)) {
+      return;
+    }
+
+    // Se elimina la versión anterior para instalar la regla ampliada.
+    await customStatement('''
+    DROP TRIGGER IF EXISTS prevent_base_currency_change_after_history
+  ''');
+
+    await customStatement('''
+    CREATE TRIGGER prevent_base_currency_change_after_history
+    BEFORE UPDATE OF is_base ON currencies
+    WHEN OLD.is_base = 1
+      AND NEW.is_base = 0
+      AND (
+        EXISTS (SELECT 1 FROM exchange_rates)
+        OR EXISTS (SELECT 1 FROM purchases)
+        OR EXISTS (SELECT 1 FROM supplier_payments)
+        OR EXISTS (SELECT 1 FROM sales)
+        OR EXISTS (SELECT 1 FROM sale_payments)
+      )
+    BEGIN
+      SELECT RAISE(
+        ABORT,
+        'No se puede cambiar la moneda base después de registrar operaciones financieras'
+      );
+    END
+  ''');
   }
 
   // ==========================================================
