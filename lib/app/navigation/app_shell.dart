@@ -38,6 +38,11 @@ class AppShell extends StatelessWidget {
       icon: Icons.shopping_cart_outlined,
     ),
     _NavigationDestination(
+      label: 'Ventas',
+      path: '/sales',
+      icon: Icons.point_of_sale_outlined,
+    ),
+    _NavigationDestination(
       label: 'Configuración',
       path: '/settings',
       icon: Icons.settings_outlined,
