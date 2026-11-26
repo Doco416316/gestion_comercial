@@ -130,7 +130,7 @@ void main() {
         name: 'Proveedor principal',
       );
 
-      final draftId = await createPurchase(
+      await createPurchase(
         supplierId: supplierId,
         documentNumber: 'FAC-DRAFT',
       );
