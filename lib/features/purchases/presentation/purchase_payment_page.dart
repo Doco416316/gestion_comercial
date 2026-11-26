@@ -1,4 +1,4 @@
-﻿import 'package:decimal/decimal.dart';
+import 'package:decimal/decimal.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -436,4 +436,3 @@ class _PurchasePaymentPageState extends ConsumerState<PurchasePaymentPage> {
     );
   }
 }
-
