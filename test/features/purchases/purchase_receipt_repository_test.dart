@@ -250,6 +250,42 @@ void main() {
       purchaseDetailId = details.single.id;
     });
 
+    test(
+      'la base de datos rechaza un detalle inventariable sin movimiento',
+      () async {
+        const receiptId = 'receipt-direct-without-movement';
+
+        await database
+            .into(database.purchaseReceipts)
+            .insert(
+              PurchaseReceiptsCompanion.insert(
+                id: receiptId,
+                purchaseId: purchaseId,
+                receivedAt: DateTime(2026, 1, 16),
+              ),
+            );
+
+        await expectLater(
+          database
+              .into(database.purchaseReceiptDetails)
+              .insert(
+                PurchaseReceiptDetailsCompanion.insert(
+                  id: 'receipt-detail-without-movement',
+                  receiptId: receiptId,
+                  purchaseDetailId: purchaseDetailId,
+                  quantityMilliUnits: 1000,
+                  inventoryMovementId: const Value(null),
+                ),
+              ),
+          throwsA(anything),
+        );
+
+        expect(await receiptRepository.getReceiptDetails(receiptId), isEmpty);
+        expect(await countMovements(), 0);
+        expect(await getStock(productId), 0);
+      },
+    );
+
     test('registra una recepción completa', () async {
       final receiptId = await receiptRepository.createReceipt(
         purchaseId: purchaseId,

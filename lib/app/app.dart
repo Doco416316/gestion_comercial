@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/database/app_database.dart';
@@ -12,6 +12,11 @@ import '../features/suppliers/presentation/supplier_list_page.dart';
 import '../features/sales/presentation/sales_page.dart';
 import '../features/sales/presentation/sale_form_page.dart';
 import '../features/sales/presentation/sale_detail_page.dart';
+import '../features/purchases/presentation/purchases_page.dart';
+import '../features/purchases/presentation/purchase_form_page.dart';
+import '../features/purchases/presentation/purchase_detail_page.dart';
+import '../features/purchases/presentation/purchase_receipt_page.dart';
+import '../features/purchases/presentation/purchase_payment_page.dart';
 import '../features/settings/presentation/settings_page.dart';
 import 'navigation/app_shell.dart';
 import 'navigation/placeholder_page.dart';
@@ -126,11 +131,53 @@ final GoRouter _router = GoRouter(
         ),
         GoRoute(
           path: '/purchases',
-          builder: (context, state) => const PlaceholderPage(
-            title: 'Compras',
-            description: 'Compras, recepciones y pagos a proveedores.',
-            icon: Icons.shopping_cart_outlined,
-          ),
+          builder: (context, state) => const PurchasesPage(),
+        ),
+        GoRoute(
+          path: '/purchases/new',
+          builder: (context, state) => const PurchaseFormPage(),
+        ),
+        GoRoute(
+          path: '/purchases/detail',
+          builder: (context, state) {
+            final purchaseId = state.extra;
+            if (purchaseId is! String || purchaseId.isEmpty) {
+              return const PlaceholderPage(
+                title: 'Compra no disponible',
+                description: 'No se pudo identificar la compra solicitada.',
+                icon: Icons.shopping_cart_outlined,
+              );
+            }
+            return PurchaseDetailPage(purchaseId: purchaseId);
+          },
+        ),
+        GoRoute(
+          path: '/purchases/receipt',
+          builder: (context, state) {
+            final purchaseId = state.extra;
+            if (purchaseId is! String || purchaseId.isEmpty) {
+              return const PlaceholderPage(
+                title: 'Recepción no disponible',
+                description: 'No se pudo identificar la compra solicitada.',
+                icon: Icons.inventory_2_outlined,
+              );
+            }
+            return PurchaseReceiptPage(purchaseId: purchaseId);
+          },
+        ),
+        GoRoute(
+          path: '/purchases/payment',
+          builder: (context, state) {
+            final purchaseId = state.extra;
+            if (purchaseId is! String || purchaseId.isEmpty) {
+              return const PlaceholderPage(
+                title: 'Pago no disponible',
+                description: 'No se pudo identificar la compra solicitada.',
+                icon: Icons.payments_outlined,
+              );
+            }
+            return PurchasePaymentPage(purchaseId: purchaseId);
+          },
         ),
         GoRoute(
           path: '/settings',

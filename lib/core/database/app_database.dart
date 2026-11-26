@@ -594,7 +594,7 @@ class AppDatabase extends _$AppDatabase {
   static final BigInt _maxSqliteInteger = BigInt.parse('9223372036854775807');
 
   @override
-  int get schemaVersion => 17;
+  int get schemaVersion => 18;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -618,6 +618,7 @@ class AppDatabase extends _$AppDatabase {
       await _createFinancialHistoryProtection();
       await _createBaseCurrencyHistoryProtection();
       await _createSalesCancellationProtection();
+      await _createPurchaseReceiptInventoryLinkProtection();
     },
     onUpgrade: (m, from, to) async {
       if (from < 2) {
@@ -746,6 +747,11 @@ class AppDatabase extends _$AppDatabase {
       // controlada de ventas confirmadas.
       if (from < 17 && to >= 17) {
         await _createSalesCancellationProtection();
+      }
+      // Versión 18: validar la correspondencia entre recepciones
+      // de compras y movimientos de inventario.
+      if (from < 18 && to >= 18) {
+        await _createPurchaseReceiptInventoryLinkProtection();
       }
     },
   );
@@ -1419,6 +1425,55 @@ END;
   // ==========================================================
   // PROTECCIÓN DEL CICLO DE VIDA DE COMPRAS
   // ==========================================================
+
+  Future<void> _createPurchaseReceiptInventoryLinkProtection() async {
+    await customStatement('''
+      DROP TRIGGER IF EXISTS
+      validate_purchase_receipt_detail_inventory_link
+    ''');
+
+    await customStatement('''
+      CREATE TRIGGER validate_purchase_receipt_detail_inventory_link
+      BEFORE INSERT ON purchase_receipt_details
+      BEGIN
+        SELECT RAISE(
+          ABORT,
+          'El movimiento de inventario no corresponde al detalle recibido'
+        )
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM purchase_receipts r
+          JOIN purchase_details d
+            ON d.id = NEW.purchase_detail_id
+          JOIN products p
+            ON p.id = d.product_id
+          WHERE r.id = NEW.receipt_id
+            AND r.purchase_id = d.purchase_id
+            AND (
+              (
+                p.track_inventory = 0
+                AND NEW.inventory_movement_id IS NULL
+              )
+              OR (
+                p.track_inventory = 1
+                AND NEW.inventory_movement_id IS NOT NULL
+                AND EXISTS (
+                  SELECT 1
+                  FROM inventory_movements m
+                  WHERE m.id = NEW.inventory_movement_id
+                    AND m.product_id = d.product_id
+                    AND m.movement_type = 'entry'
+                    AND m.quantity_milli_units = NEW.quantity_milli_units
+                    AND m.reference =
+                      'receipt:' || NEW.receipt_id ||
+                      ';detail:' || NEW.purchase_detail_id
+                )
+              )
+            )
+        );
+      END
+    ''');
+  }
 
   Future<void> _createPurchaseLifecycleProtection() async {
     // Solo se pueden crear compras nuevas como borradores.

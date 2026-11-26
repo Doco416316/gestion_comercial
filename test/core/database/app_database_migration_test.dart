@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 
 import 'package:drift/drift.dart' hide isNull;
 import 'package:drift/native.dart';
@@ -504,7 +504,7 @@ void main() {
           .customSelect('PRAGMA user_version')
           .getSingle();
 
-      expect(versionRow.read<int>('user_version'), 17);
+      expect(versionRow.read<int>('user_version'), 18);
 
       // Comprueba la integridad de las relaciones.
       final foreignKeyViolations = await database
@@ -934,7 +934,7 @@ void main() {
           .customSelect('PRAGMA user_version')
           .getSingle();
 
-      expect(versionRow.read<int>('user_version'), 17);
+      expect(versionRow.read<int>('user_version'), 18);
     } finally {
       await database.close();
     }
@@ -1500,7 +1500,7 @@ void main() {
           .customSelect('PRAGMA user_version')
           .getSingle();
 
-      expect(versionRow.read<int>('user_version'), 17);
+      expect(versionRow.read<int>('user_version'), 18);
     } finally {
       await database.close();
     }
@@ -1591,7 +1591,7 @@ void main() {
       final versionRow = await database
           .customSelect('PRAGMA user_version')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 17);
+      expect(versionRow.read<int>('user_version'), 18);
 
       final salesTriggers = await database.customSelect('''
         SELECT name FROM sqlite_master
@@ -1618,7 +1618,7 @@ void main() {
       await database.close();
     }
   });
-  test('migra ventas confirmadas de la versión 16 a la 17', () async {
+  test('migra ventas confirmadas de la versión 16 a la 18', () async {
     final temporaryDirectory = await Directory.systemTemp.createTemp(
       'sales_migration_test_',
     );
@@ -1707,7 +1707,7 @@ void main() {
           .customSelect('PRAGMA user_version')
           .getSingle();
 
-      expect(versionRow.read<int>('user_version'), 17);
+      expect(versionRow.read<int>('user_version'), 18);
 
       // Comprueba que la venta y el pago históricos siguen intactos.
       final sale = await (database.select(
@@ -1814,4 +1814,52 @@ void main() {
       await temporaryDirectory.delete(recursive: true);
     }
   });
+
+  test(
+    'instala la protección de vínculos de recepción al migrar de 17 a 18',
+    () async {
+      final temporaryDirectory = await Directory.systemTemp.createTemp(
+        'receipt_inventory_link_migration_test_',
+      );
+      final databaseFile = File(
+        '${temporaryDirectory.path}${Platform.pathSeparator}migration.sqlite',
+      );
+
+      var database = AppDatabase.forTesting(NativeDatabase(databaseFile));
+
+      try {
+        await database.customStatement('''
+        DROP TRIGGER IF EXISTS
+        validate_purchase_receipt_detail_inventory_link
+      ''');
+
+        await database.customStatement('PRAGMA user_version = 17');
+        await database.close();
+
+        database = AppDatabase.forTesting(NativeDatabase(databaseFile));
+
+        final versionRow = await database
+            .customSelect('PRAGMA user_version')
+            .getSingle();
+
+        expect(versionRow.read<int>('user_version'), 18);
+
+        final trigger = await database.customSelect('''
+        SELECT name
+        FROM sqlite_master
+        WHERE type = 'trigger'
+          AND name = 'validate_purchase_receipt_detail_inventory_link'
+      ''').get();
+
+        expect(trigger, hasLength(1));
+        expect(
+          trigger.single.read<String>('name'),
+          'validate_purchase_receipt_detail_inventory_link',
+        );
+      } finally {
+        await database.close();
+        await temporaryDirectory.delete(recursive: true);
+      }
+    },
+  );
 }
